@@ -1,0 +1,2216 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>移動費見積り - 営業交通費計算ツール</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #fff;
+            color: #111;
+            line-height: 1.5;
+            font-size: 16px;
+        }
+
+        /* ===== レイアウト全体 ===== */
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* ===== ヘッダー ===== */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #111;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .header-icon {
+            width: 40px;
+            height: 40px;
+            background: #111;
+            color: #fff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 20px;
+            transition: transform 0.2s;
+        }
+
+        .header-icon:hover {
+            transform: scale(1.1);
+        }
+
+        /* ===== フォーム区間 ===== */
+        .form-section {
+            margin-bottom: 28px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #555;
+            margin-bottom: 12px;
+            letter-spacing: 1px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .input-group input,
+        .input-group select {
+            flex: 1;
+            padding: 12px 14px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            background: #fff;
+            color: #111;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: #111;
+            box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.1);
+        }
+
+        .input-group input::placeholder {
+            color: #999;
+        }
+
+        .input-button {
+            padding: 12px 14px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            min-width: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .input-button:hover {
+            background: #e8e8e8;
+        }
+
+        .input-button.active {
+            background: #111;
+            color: #fff;
+            border-color: #111;
+        }
+
+        /* ===== オートコンプリートドロップダウン ===== */
+        .autocomplete-list {
+            position: absolute;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            max-height: 200px;
+            overflow-y: auto;
+            width: calc(100% - 16px);
+            z-index: 100;
+            display: none;
+        }
+
+        .autocomplete-list.show {
+            display: block;
+        }
+
+        .autocomplete-item {
+            padding: 10px 14px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .autocomplete-item:hover {
+            background: #f5f5f5;
+        }
+
+        .autocomplete-item.selected {
+            background: #f0f0f0;
+        }
+
+        /* ===== モード切替タブ ===== */
+        .mode-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .mode-tab {
+            flex: 1;
+            padding: 12px 8px;
+            background: #fff;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            color: #999;
+            transition: all 0.2s;
+        }
+
+        .mode-tab.active {
+            color: #111;
+            border-bottom-color: #111;
+        }
+
+        /* ===== 折りたたみセクション ===== */
+        .collapsible-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            color: #111;
+            width: 100%;
+        }
+
+        .collapsible-header::after {
+            content: '▸';
+            font-size: 18px;
+            transition: transform 0.2s;
+        }
+
+        .collapsible-header.expanded::after {
+            transform: rotate(90deg);
+        }
+
+        .collapsible-content {
+            display: none;
+            margin-top: 12px;
+            padding: 12px;
+            background: #f9f9f9;
+            border-radius: 6px;
+        }
+
+        .collapsible-content.show {
+            display: block;
+        }
+
+        .collapsible-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .collapsible-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .collapsible-row label {
+            font-size: 13px;
+            font-weight: 600;
+            min-width: 100px;
+            color: #555;
+        }
+
+        .collapsible-row input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .collapsible-row input:focus {
+            outline: none;
+            border-color: #111;
+        }
+
+        /* ===== チェックボックス ===== */
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #111;
+        }
+
+        .checkbox-group label {
+            font-size: 14px;
+            cursor: pointer;
+            flex: 1;
+        }
+
+        /* ===== ボタン ===== */
+        .button {
+            width: 100%;
+            padding: 14px 32px;
+            background: #111;
+            color: #fff;
+            border: none;
+            border-radius: 9999px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .button:hover {
+            background: #333;
+            transform: translateY(-2px);
+        }
+
+        .button:active {
+            transform: translateY(0);
+        }
+
+        .button.disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .button-spinner {
+            display: none;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #fff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .button.loading .button-spinner {
+            display: inline-block;
+        }
+
+        .button.loading {
+            pointer-events: none;
+        }
+
+        /* ===== 地図 ===== */
+        .map-container {
+            position: relative;
+            width: 100%;
+            height: 280px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            background: #f9f9f9;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .map-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.9);
+            padding: 16px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            z-index: 10;
+            display: none;
+        }
+
+        .map-loading.show {
+            display: block;
+        }
+
+        /* ===== 結果カード ===== */
+        .result-card {
+            background: #fff;
+            border: 2px solid #111;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .result-card.show {
+            display: block;
+        }
+
+        .result-card h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .result-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .result-label {
+            color: #555;
+            font-weight: 500;
+        }
+
+        .result-value {
+            font-weight: 600;
+            color: #111;
+            text-align: right;
+            flex: 1;
+            margin-left: 12px;
+        }
+
+        .result-unit {
+            font-size: 12px;
+            color: #999;
+            margin-left: 4px;
+        }
+
+        /* ===== 手入力フィールド付き結果 ===== */
+        .result-input-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            gap: 8px;
+        }
+
+        .result-input-row input {
+            flex: 1;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            max-width: 120px;
+        }
+
+        .result-input-row input:focus {
+            outline: none;
+            border-color: #111;
+        }
+
+        .result-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: #111;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .result-link:hover {
+            background: #f0f0f0;
+            border-color: #111;
+        }
+
+        .result-section {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .result-total {
+            background: #f9f9f9;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 12px;
+        }
+
+        .result-total .result-row {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        /* ===== アクション行 ===== */
+        .action-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .button-secondary {
+            flex: 1;
+            padding: 12px 16px;
+            background: #f5f5f5;
+            color: #111;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .button-secondary:hover {
+            background: #e8e8e8;
+        }
+
+        /* ===== 履歴・お気に入りセクション ===== */
+        .list-tabs {
+            display: flex;
+            gap: 8px;
+            margin-top: 28px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .list-tab {
+            flex: 1;
+            padding: 12px 8px;
+            background: #fff;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            color: #999;
+            transition: all 0.2s;
+        }
+
+        .list-tab.active {
+            color: #111;
+            border-bottom-color: #111;
+        }
+
+        .list-content {
+            display: none;
+            margin-top: 16px;
+        }
+
+        .list-content.show {
+            display: block;
+        }
+
+        .list-item {
+            padding: 12px;
+            background: #f9f9f9;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .list-item:hover {
+            background: #f0f0f0;
+        }
+
+        .list-item-text {
+            flex: 1;
+        }
+
+        .list-item-label {
+            font-weight: 600;
+            color: #111;
+        }
+
+        .list-item-sub {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        .list-item-action {
+            display: flex;
+            gap: 4px;
+        }
+
+        .icon-button {
+            background: #fff;
+            border: 1px solid #ddd;
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .icon-button:hover {
+            background: #e8e8e8;
+            border-color: #111;
+        }
+
+        .empty-message {
+            text-align: center;
+            padding: 32px 16px;
+            color: #999;
+            font-size: 14px;
+        }
+
+        /* ===== モーダル ===== */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #fff;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .modal-header {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            color: #111;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .modal-row {
+            margin-bottom: 16px;
+        }
+
+        .modal-row label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 6px;
+        }
+
+        .modal-row input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .modal-row input:focus {
+            outline: none;
+            border-color: #111;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 8px;
+        }
+
+        .modal-button {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .modal-button.primary {
+            background: #111;
+            color: #fff;
+        }
+
+        .modal-button.primary:hover {
+            background: #333;
+        }
+
+        .modal-button.secondary {
+            background: #f5f5f5;
+            color: #111;
+        }
+
+        .modal-button.secondary:hover {
+            background: #e8e8e8;
+        }
+
+        /* ===== トースト ===== */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            max-width: 500px;
+            background: #333;
+            color: #fff;
+            padding: 14px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            z-index: 2000;
+            animation: slideUp 0.3s ease;
+            display: none;
+        }
+
+        .toast.show {
+            display: block;
+        }
+
+        .toast.error {
+            background: #d32f2f;
+        }
+
+        .toast.success {
+            background: #388e3c;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        /* ===== レスポンシブ ===== */
+        @media (max-width: 600px) {
+            .container {
+                padding: 16px;
+            }
+
+            .header {
+                margin-bottom: 24px;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .input-group {
+                flex-direction: column;
+            }
+
+            .input-group input,
+            .input-group select {
+                width: 100%;
+            }
+
+            .input-button {
+                width: 100%;
+            }
+
+            .mode-tabs {
+                gap: 6px;
+            }
+
+            .mode-tab {
+                font-size: 12px;
+                padding: 10px 6px;
+            }
+
+            .map-container {
+                height: 220px;
+            }
+
+            .result-input-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .result-input-row input {
+                max-width: 100%;
+            }
+
+            .result-link {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .modal-content {
+                width: 95%;
+            }
+
+            .toast {
+                left: 12px;
+                right: 12px;
+            }
+        }
+
+        /* ===== 属性チップ ===== */
+        .badge {
+            display: inline-block;
+            background: #f0f0f0;
+            color: #555;
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            margin-top: 4px;
+        }
+
+        /* ===== Leaflet上書き ===== */
+        .leaflet-control-attribution {
+            font-size: 11px !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- ヘッダー -->
+        <div class="header">
+            <h1>移動費見積り</h1>
+            <div class="header-icon" id="settingsBtn">⚙</div>
+        </div>
+
+        <!-- 出発地 -->
+        <div class="form-section">
+            <div class="section-title">出発地</div>
+            <div class="input-group">
+                <input type="text" id="originInput" placeholder="住所を入力 or 現在地を取得">
+                <button class="input-button" id="gpsBtn" title="現在地を取得">📍</button>
+                <button class="input-button" id="originFavBtn" title="お気に入りから選択">★</button>
+            </div>
+            <div class="autocomplete-list" id="originAutoComplete"></div>
+        </div>
+
+        <!-- 目的地 -->
+        <div class="form-section">
+            <div class="section-title">訪問先</div>
+            <div class="input-group">
+                <input type="text" id="destInput" placeholder="住所を入力">
+                <button class="input-button" id="destFavBtn" title="よく行く現場から選択">★</button>
+            </div>
+            <div class="autocomplete-list" id="destAutoComplete"></div>
+        </div>
+
+        <!-- 交通手段タブ -->
+        <div class="form-section">
+            <div class="mode-tabs">
+                <button class="mode-tab active" data-mode="car">🚗 車</button>
+                <button class="mode-tab" data-mode="transit">🚃 電車</button>
+                <button class="mode-tab" data-mode="foot">🚶 徒歩</button>
+                <button class="mode-tab" data-mode="bike">🚲 自転車</button>
+            </div>
+        </div>
+
+        <!-- 車両設定（折りたたみ） -->
+        <div class="form-section">
+            <button class="collapsible-header" id="vehicleToggle">車両・経費設定</button>
+            <div class="collapsible-content" id="vehicleContent">
+                <div class="collapsible-row">
+                    <label>燃費 (km/L)</label>
+                    <input type="number" id="fuelEfficiency" min="1" max="50" step="0.1" value="12" placeholder="12">
+                </div>
+                <div class="collapsible-row">
+                    <label>ガソリン単価 (円/L)</label>
+                    <input type="number" id="fuelPrice" min="0" max="300" step="0.1" value="170" placeholder="170">
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="useHighway" checked>
+                    <label for="useHighway">高速道路を利用する</label>
+                </div>
+                <div class="collapsible-row">
+                    <label>会社規定 (円/km)</label>
+                    <input type="number" id="companyRate" min="0" max="100" step="0.1" placeholder="任意（空欄で非表示）">
+                </div>
+            </div>
+        </div>
+
+        <!-- 検索ボタン -->
+        <div class="form-section">
+            <button class="button" id="searchBtn">
+                <span class="button-spinner"></span>
+                ルートを検索
+            </button>
+        </div>
+
+        <!-- 地図 -->
+        <div class="map-container">
+            <div class="map-loading" id="mapLoading">地図を読み込み中...</div>
+            <div id="map"></div>
+        </div>
+
+        <!-- 結果 -->
+        <div class="result-card" id="resultCard">
+            <h3>ルート検索結果</h3>
+            
+            <!-- 車モード結果 -->
+            <div id="carResult" class="route-result">
+                <div class="result-row">
+                    <span class="result-label">片道距離</span>
+                    <span class="result-value"><span id="carDistance">0</span><span class="result-unit">km</span></span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">所要時間</span>
+                    <span class="result-value"><span id="carDuration">0</span><span class="result-unit">分</span></span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">ガソリン代（片道）</span>
+                    <span class="result-value">¥<span id="carFuelOneway">0</span></span>
+                </div>
+
+                <div class="result-input-row">
+                    <span class="result-label">高速料金（片道）</span>
+                    <input type="number" id="carTollInput" min="0" placeholder="0" value="0">
+                    <a class="result-link" id="draplasLink" href="#" target="_blank" rel="noopener noreferrer">
+                        NEXCO <span>↗</span>
+                    </a>
+                </div>
+
+                <div class="result-section">
+                    <div class="result-row">
+                        <span class="result-label">往復ガソリン代</span>
+                        <span class="result-value">¥<span id="carFuelRoundtrip">0</span></span>
+                    </div>
+                    <div class="result-row">
+                        <span class="result-label">往復高速料金</span>
+                        <span class="result-value">¥<span id="carTollRoundtrip">0</span></span>
+                    </div>
+
+                    <div id="companyRateRow" class="result-row" style="display: none;">
+                        <span class="result-label">会社支給（往復）</span>
+                        <span class="result-value">¥<span id="companyAmount">0</span></span>
+                    </div>
+
+                    <div class="result-total">
+                        <div class="result-row">
+                            <span class="result-label">総移動コスト</span>
+                            <span class="result-value">¥<span id="carTotalCost">0</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 電車モード結果 -->
+            <div id="transitResult" class="route-result" style="display: none;">
+                <div class="result-row">
+                    <span class="result-label">所要時間</span>
+                    <span class="result-value"><span id="transitDuration">0</span><span class="result-unit">分</span></span>
+                </div>
+
+                <div class="result-input-row">
+                    <span class="result-label">運賃</span>
+                    <input type="number" id="transitFareInput" min="0" placeholder="0" value="0">
+                    <a class="result-link" id="transitLink" href="#" target="_blank" rel="noopener noreferrer">
+                        乗換案内 <span>↗</span>
+                    </a>
+                </div>
+
+                <div class="result-input-row">
+                    <label style="flex: 0;">乗換回数</label>
+                    <input type="number" id="transitTransfersInput" min="0" placeholder="0" value="0" style="max-width: 80px;">
+                </div>
+
+                <div class="result-total">
+                    <div class="result-row">
+                        <span class="result-label">運賃総額</span>
+                        <span class="result-value">¥<span id="transitTotalCost">0</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 徒歩・自転車モード結果 -->
+            <div id="otherResult" class="route-result" style="display: none;">
+                <div class="result-row">
+                    <span class="result-label">片道距離</span>
+                    <span class="result-value"><span id="otherDistance">0</span><span class="result-unit">km</span></span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">所要時間</span>
+                    <span class="result-value"><span id="otherDuration">0</span><span class="result-unit">分</span></span>
+                </div>
+            </div>
+
+            <!-- アクション行 -->
+            <div class="action-row">
+                <button class="button-secondary" id="saveHistoryBtn">📝 履歴に保存</button>
+                <button class="button-secondary" id="exportCsvBtn">📥 CSV出力</button>
+            </div>
+        </div>
+
+        <!-- 履歴・お気に入りセクション -->
+        <div class="list-tabs">
+            <button class="list-tab active" data-tab="history">📋 履歴</button>
+            <button class="list-tab" data-tab="favorites">⭐ お気に入り</button>
+        </div>
+
+        <div class="list-content show" id="historyList">
+            <div class="empty-message">検索履歴はまだありません</div>
+        </div>
+
+        <div class="list-content" id="favoritesList">
+            <div class="empty-message">お気に入り住所はまだありません</div>
+        </div>
+    </div>
+
+    <!-- 設定モーダル -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>設定</span>
+                <button class="modal-close" id="settingsModalClose">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-row">
+                    <label>ツール情報</label>
+                    <p style="font-size: 13px; color: #666; margin: 0;">
+                        このツールは OSM・OSRM・Photon などの無料・オープンソース地図サービスを利用しています。<br><br>
+                        <strong>高速料金・電車運賃について:</strong> 自動取得ではなく、外部サイトのリンク経由で確認後、手入力で入力してください。<br><br>
+                        <strong>利用規約:</strong> Nominatim/OSRM の公開インスタンスは低頻度個人利用想定です。本格運用時は自前サーバー構築をご検討ください。
+                    </p>
+                </div>
+                <div class="modal-row">
+                    <label>
+                        <input type="checkbox" id="persistentStorage">
+                        <span>このPCで設定を保存する</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-button secondary" id="settingsModalClose2">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- お気に入り選択モーダル -->
+    <div class="modal" id="favoriteSelectModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span id="favoriteSelectTitle">お気に入りから選択</span>
+                <button class="modal-close" id="favoriteSelectClose">✕</button>
+            </div>
+            <div class="modal-body" id="favoriteSelectList">
+            </div>
+            <div class="modal-footer">
+                <button class="modal-button secondary" id="addFavoriteBtn">+ 新規登録</button>
+                <button class="modal-button secondary" id="favoriteSelectClose2">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- お気に入り登録モーダル -->
+    <div class="modal" id="addFavoriteModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>住所をお気に入りに登録</span>
+                <button class="modal-close" id="addFavoriteClose">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-row">
+                    <label>表示名</label>
+                    <input type="text" id="favoriteLabel" placeholder="例：営業所、〇〇ビル">
+                </div>
+                <div class="modal-row">
+                    <label>住所</label>
+                    <input type="text" id="favoriteAddress" readonly>
+                </div>
+                <div class="modal-row">
+                    <label>分類</label>
+                    <select id="favoriteType" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+                        <option value="home">自宅</option>
+                        <option value="site">施工現場</option>
+                        <option value="other">その他</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-button primary" id="saveNewFavoriteBtn">登録</button>
+                <button class="modal-button secondary" id="addFavoriteClose2">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- トースト -->
+    <div class="toast" id="toast"></div>
+
+    <!-- 外部ライブラリ読み込み -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+    <script>
+        // ============================================================
+        // 1. グローバル状態管理
+        // ============================================================
+        const AppState = {
+            currentMode: 'car', // car, transit, foot, bike
+            origin: null, // { lat, lng, address }
+            destination: null, // { lat, lng, address }
+            lastRoute: null, // { distance, duration, polyline, steps, etc }
+            map: null,
+            polylineLayer: null,
+            originMarker: null,
+            destMarker: null,
+            favorites: [],
+            history: [],
+            settings: {
+                persistentStorage: true
+            }
+        };
+
+        // ============================================================
+        // 2. ConfigStore - 設定管理（燃費・単価など）
+        // ============================================================
+        class ConfigStore {
+            constructor() {
+                this.storageKey = 'tc_config';
+                this.load();
+            }
+
+            load() {
+                const stored = localStorage.getItem(this.storageKey);
+                if (stored) {
+                    this.data = JSON.parse(stored);
+                } else {
+                    this.data = {
+                        fuelEfficiency: 12,
+                        fuelPrice: 170,
+                        useHighway: true,
+                        companyRate: null
+                    };
+                }
+            }
+
+            save() {
+                localStorage.setItem(this.storageKey, JSON.stringify(this.data));
+            }
+
+            get(key) {
+                return this.data[key];
+            }
+
+            set(key, value) {
+                this.data[key] = value;
+                this.save();
+            }
+
+            getAll() {
+                return { ...this.data };
+            }
+
+            setAll(obj) {
+                this.data = { ...obj };
+                this.save();
+            }
+        }
+
+        const configStore = new ConfigStore();
+
+        // ============================================================
+        // 3. HistoryStore - 履歴管理
+        // ============================================================
+        class HistoryStore {
+            constructor() {
+                this.storageKey = 'tc_history';
+                this.maxItems = 50;
+                this.load();
+            }
+
+            load() {
+                const stored = localStorage.getItem(this.storageKey);
+                this.items = stored ? JSON.parse(stored) : [];
+            }
+
+            save() {
+                localStorage.setItem(this.storageKey, JSON.stringify(this.items));
+            }
+
+            add(record) {
+                record.id = Date.now();
+                record.date = new Date().toISOString();
+                this.items.unshift(record);
+                if (this.items.length > this.maxItems) {
+                    this.items = this.items.slice(0, this.maxItems);
+                }
+                this.save();
+            }
+
+            getAll() {
+                return this.items;
+            }
+
+            delete(id) {
+                this.items = this.items.filter(item => item.id !== id);
+                this.save();
+            }
+
+            clear() {
+                this.items = [];
+                this.save();
+            }
+        }
+
+        const historyStore = new HistoryStore();
+
+        // ============================================================
+        // 4. FavoriteStore - お気に入り管理
+        // ============================================================
+        class FavoriteStore {
+            constructor() {
+                this.storageKey = 'tc_favorites';
+                this.load();
+            }
+
+            load() {
+                const stored = localStorage.getItem(this.storageKey);
+                this.items = stored ? JSON.parse(stored) : [];
+            }
+
+            save() {
+                localStorage.setItem(this.storageKey, JSON.stringify(this.items));
+            }
+
+            add(fav) {
+                fav.id = Date.now();
+                this.items.push(fav);
+                this.save();
+            }
+
+            getAll() {
+                return this.items;
+            }
+
+            getByType(type) {
+                return this.items.filter(item => item.type === type);
+            }
+
+            delete(id) {
+                this.items = this.items.filter(item => item.id !== id);
+                this.save();
+            }
+        }
+
+        const favoriteStore = new FavoriteStore();
+
+        // ============================================================
+        // 5. Ui - ローディング・トースト
+        // ============================================================
+        class Ui {
+            static showLoading(el, text = 'Loading...') {
+                el.classList.add('loading');
+                el.textContent = text;
+            }
+
+            static hideLoading(el, text = '') {
+                el.classList.remove('loading');
+                el.textContent = text;
+            }
+
+            static showToast(message, type = 'default', duration = 3000) {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.className = `toast show ${type}`;
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, duration);
+            }
+
+            static disableButton(btn) {
+                btn.classList.add('disabled');
+                btn.disabled = true;
+            }
+
+            static enableButton(btn) {
+                btn.classList.remove('disabled');
+                btn.disabled = false;
+            }
+        }
+
+        // ============================================================
+        // 6. LocationService - GPS・ジオコーディング
+        // ============================================================
+        class LocationService {
+            static async getCurrentLocation() {
+                return new Promise((resolve, reject) => {
+                    if (!navigator.geolocation) {
+                        reject(new Error('ブラウザがGPSに対応していません'));
+                        return;
+                    }
+                    navigator.geolocation.getCurrentPosition(
+                        pos => {
+                            resolve({
+                                lat: pos.coords.latitude,
+                                lng: pos.coords.longitude
+                            });
+                        },
+                        err => {
+                            reject(new Error('位置情報の取得を拒否されました'));
+                        },
+                        { timeout: 10000 }
+                    );
+                });
+            }
+
+            static async reverseGeocode(lat, lng) {
+                try {
+                    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+                    const response = await fetch(url, {
+                        headers: { 'User-Agent': 'CommuteCostEstimator/1.0' }
+                    });
+                    if (!response.ok) throw new Error('Reverse geocoding failed');
+                    const data = await response.json();
+                    return data.address?.ja_address || data.display_name || '位置情報取得不可';
+                } catch (error) {
+                    console.error('Reverse geocoding error:', error);
+                    return null;
+                }
+            }
+        }
+
+        // ============================================================
+        // 7. PlaceAutocomplete - Photon住所オートコンプリート
+        // ============================================================
+        class PlaceAutocomplete {
+            constructor(inputEl, listEl, onSelect) {
+                this.inputEl = inputEl;
+                this.listEl = listEl;
+                this.onSelect = onSelect;
+                this.debounceTimer = null;
+                this.selectedIndex = -1;
+
+                this.inputEl.addEventListener('input', e => this.handleInput(e));
+                this.inputEl.addEventListener('keydown', e => this.handleKeydown(e));
+                document.addEventListener('click', e => {
+                    if (!e.target.closest('.input-group')) {
+                        this.close();
+                    }
+                });
+            }
+
+            async handleInput(e) {
+                clearTimeout(this.debounceTimer);
+                const query = e.target.value.trim();
+                
+                if (query.length < 3) {
+                    this.close();
+                    return;
+                }
+
+                this.debounceTimer = setTimeout(() => this.search(query), 800);
+            }
+
+            async search(query) {
+                try {
+                    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=ja`;
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error('Search failed');
+                    const data = await response.json();
+
+                    this.listEl.innerHTML = '';
+                    if (data.features.length === 0) {
+                        this.listEl.innerHTML = '<div class="autocomplete-item">結果がありません</div>';
+                        this.listEl.classList.add('show');
+                        return;
+                    }
+
+                    data.features.forEach((feature, idx) => {
+                        const properties = feature.properties;
+                        const address = [
+                            properties.name,
+                            properties.street,
+                            properties.city,
+                            properties.state
+                        ].filter(Boolean).join(' ');
+
+                        const item = document.createElement('div');
+                        item.className = 'autocomplete-item';
+                        item.textContent = address;
+                        item.addEventListener('click', () => {
+                            const [lng, lat] = feature.geometry.coordinates;
+                            this.onSelect({
+                                lat,
+                                lng,
+                                address
+                            });
+                            this.close();
+                        });
+                        this.listEl.appendChild(item);
+                    });
+
+                    this.listEl.classList.add('show');
+                    this.selectedIndex = -1;
+                } catch (error) {
+                    Ui.showToast('住所検索に失敗しました', 'error');
+                    console.error('Autocomplete error:', error);
+                }
+            }
+
+            handleKeydown(e) {
+                const items = this.listEl.querySelectorAll('.autocomplete-item');
+                if (items.length === 0) return;
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    this.selectedIndex = Math.min(this.selectedIndex + 1, items.length - 1);
+                    this.updateSelection(items);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    this.selectedIndex = Math.max(this.selectedIndex - 1, -1);
+                    this.updateSelection(items);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (this.selectedIndex >= 0) {
+                        items[this.selectedIndex].click();
+                    }
+                } else if (e.key === 'Escape') {
+                    this.close();
+                }
+            }
+
+            updateSelection(items) {
+                items.forEach((item, idx) => {
+                    item.classList.toggle('selected', idx === this.selectedIndex);
+                });
+            }
+
+            close() {
+                this.listEl.classList.remove('show');
+                this.selectedIndex = -1;
+            }
+        }
+
+        // ============================================================
+        // 8. RouteService - OSRM ルート検索
+        // ============================================================
+        class RouteService {
+            static async getRoute(origin, destination, mode) {
+                try {
+                    const profile = this.modeToProfile(mode);
+                    const url = `https://router.project-osrm.org/route/v1/${profile}/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?overview=full&steps=true&annotations=duration,distance`;
+                    
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error('Route search failed');
+                    const data = await response.json();
+
+                    if (data.code !== 'Ok' || data.routes.length === 0) {
+                        throw new Error('ルートが見つかりません');
+                    }
+
+                    const route = data.routes[0];
+                    return {
+                        distance: route.distance / 1000, // メートル → km
+                        duration: Math.ceil(route.duration / 60), // 秒 → 分
+                        polyline: this.decodePolyline(route.geometry),
+                        steps: route.legs[0].steps || [],
+                        geometry: route.geometry
+                    };
+                } catch (error) {
+                    console.error('RouteService error:', error);
+                    throw error;
+                }
+            }
+
+            static modeToProfile(mode) {
+                const profiles = {
+                    car: 'car',
+                    transit: 'car', // OSRM は transit 非対応、車で代替
+                    foot: 'foot',
+                    bike: 'bike'
+                };
+                return profiles[mode] || 'car';
+            }
+
+            static decodePolyline(geometry) {
+                // Google polyline algorithm
+                if (!geometry) return [];
+                let index = 0, lat = 0, lng = 0;
+                const coordinates = [];
+                const changes = geometry.split('').map(char => {
+                    const value = char.charCodeAt(0) - 63;
+                    const negated = value & 1;
+                    let chunk = value >> 1;
+                    chunk = negated ? ~chunk : chunk;
+                    return chunk;
+                });
+
+                for (let i = 0; i < changes.length; ) {
+                    const delta_lat = changes[i++];
+                    const delta_lng = changes[i++];
+                    lat += delta_lat;
+                    lng += delta_lng;
+                    coordinates.push([lat / 1e5, lng / 1e5]);
+                }
+                return coordinates;
+            }
+        }
+
+        // ============================================================
+        // 9. CostCalculator - 費用計算（純関数）
+        // ============================================================
+        class CostCalculator {
+            static calculateCarCosts(distance, fuelEfficiency, fuelPrice, tollYen = 0, companyRate = null) {
+                const gasolineOneway = Math.ceil((distance / fuelEfficiency) * fuelPrice);
+                const gasolineRoundtrip = gasolineOneway * 2;
+                const tollRoundtrip = tollYen * 2;
+                const totalCost = gasolineRoundtrip + tollRoundtrip;
+
+                return {
+                    gasolineOneway,
+                    gasolineRoundtrip,
+                    tollRoundtrip,
+                    totalCost,
+                    companyAmount: companyRate ? Math.ceil(distance * 2 * companyRate) : null
+                };
+            }
+
+            static calculateTransitCosts(fareYen = 0, transfers = 0) {
+                return {
+                    totalCost: fareYen,
+                    transfers
+                };
+            }
+        }
+
+        // ============================================================
+        // 10. ExternalLinkBuilder - 外部リンク生成
+        // ============================================================
+        class ExternalLinkBuilder {
+            static buildDraplusUrl(origin, destination) {
+                // ドラぷら料金検索：出発地・到着地をクエリパラメータに
+                // 実際のドラぷらではIC名が必要だが、ここでは住所をコピー補助する形で提供
+                const baseUrl = 'https://www.driveplaza.com/search/toll';
+                return `${baseUrl}?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`;
+            }
+
+            static buildYahooTransitUrl(origin, destination) {
+                // Yahoo!乗換案内
+                const baseUrl = 'https://transit.yahoo.co.jp/search/result';
+                return `${baseUrl}?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(destination)}`;
+            }
+        }
+
+        // ============================================================
+        // 11. MapView - Leaflet 地図
+        // ============================================================
+        class MapView {
+            static init() {
+                if (AppState.map) return;
+                AppState.map = L.map('map').setView([35.6762, 139.6503], 6);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19
+                }).addTo(AppState.map);
+            }
+
+            static setRoute(origin, destination, polyline) {
+                if (!AppState.map) this.init();
+
+                // マーカー削除
+                if (AppState.originMarker) AppState.map.removeLayer(AppState.originMarker);
+                if (AppState.destMarker) AppState.map.removeLayer(AppState.destMarker);
+                if (AppState.polylineLayer) AppState.map.removeLayer(AppState.polylineLayer);
+
+                // 新しいマーカー
+                AppState.originMarker = L.marker([origin.lat, origin.lng])
+                    .bindPopup('出発地')
+                    .addTo(AppState.map);
+                AppState.destMarker = L.marker([destination.lat, destination.lng])
+                    .bindPopup('訪問先')
+                    .addTo(AppState.map);
+
+                // ポリライン
+                if (polyline && polyline.length > 0) {
+                    AppState.polylineLayer = L.polyline(polyline, {
+                        color: '#111',
+                        weight: 3,
+                        opacity: 0.8
+                    }).addTo(AppState.map);
+
+                    // 自動ズーム
+                    AppState.map.fitBounds(AppState.polylineLayer.getBounds(), {
+                        padding: [50, 50]
+                    });
+                }
+            }
+
+            static clear() {
+                if (AppState.originMarker) AppState.map.removeLayer(AppState.originMarker);
+                if (AppState.destMarker) AppState.map.removeLayer(AppState.destMarker);
+                if (AppState.polylineLayer) AppState.map.removeLayer(AppState.polylineLayer);
+                AppState.originMarker = null;
+                AppState.destMarker = null;
+                AppState.polylineLayer = null;
+            }
+        }
+
+        // ============================================================
+        // 12. ResultRenderer - 結果表示
+        // ============================================================
+        class ResultRenderer {
+            static render(route, mode) {
+                const resultCard = document.getElementById('resultCard');
+                const carResult = document.getElementById('carResult');
+                const transitResult = document.getElementById('transitResult');
+                const otherResult = document.getElementById('otherResult');
+
+                // すべて非表示
+                carResult.style.display = 'none';
+                transitResult.style.display = 'none';
+                otherResult.style.display = 'none';
+
+                if (mode === 'car') {
+                    this.renderCar(route);
+                    carResult.style.display = 'block';
+                } else if (mode === 'transit') {
+                    this.renderTransit(route);
+                    transitResult.style.display = 'block';
+                } else {
+                    this.renderOther(route);
+                    otherResult.style.display = 'block';
+                }
+
+                resultCard.classList.add('show');
+            }
+
+            static renderCar(route) {
+                const config = configStore.getAll();
+                const costs = CostCalculator.calculateCarCosts(
+                    route.distance,
+                    config.fuelEfficiency,
+                    config.fuelPrice,
+                    0, // 初期値 0、ユーザーが入力
+                    config.companyRate
+                );
+
+                document.getElementById('carDistance').textContent = route.distance.toFixed(1);
+                document.getElementById('carDuration').textContent = route.duration;
+                document.getElementById('carFuelOneway').textContent = costs.gasolineOneway;
+                document.getElementById('carFuelRoundtrip').textContent = costs.gasolineRoundtrip;
+                document.getElementById('carTotalCost').textContent = costs.gasolineRoundtrip;
+
+                // ドラぷらリンク生成
+                const draplasUrl = ExternalLinkBuilder.buildDraplusUrl(
+                    AppState.origin.address,
+                    AppState.destination.address
+                );
+                document.getElementById('draplasLink').href = draplasUrl;
+
+                // 会社規定単価表示
+                if (config.companyRate) {
+                    document.getElementById('companyRateRow').style.display = 'flex';
+                    document.getElementById('companyAmount').textContent = costs.companyAmount;
+                } else {
+                    document.getElementById('companyRateRow').style.display = 'none';
+                }
+
+                // 入力イベントリスナー
+                document.getElementById('carTollInput').addEventListener('change', () => this.updateCarCosts());
+                this.updateCarCosts();
+            }
+
+            static updateCarCosts() {
+                const config = configStore.getAll();
+                const tollInput = parseInt(document.getElementById('carTollInput').value) || 0;
+                
+                const gasolineRoundtrip = parseInt(document.getElementById('carFuelRoundtrip').textContent);
+                const tollRoundtrip = tollInput * 2;
+                const totalCost = gasolineRoundtrip + tollRoundtrip;
+
+                document.getElementById('carTollRoundtrip').textContent = tollRoundtrip;
+                document.getElementById('carTotalCost').textContent = totalCost;
+            }
+
+            static renderTransit(route) {
+                document.getElementById('transitDuration').textContent = route.duration;
+
+                const transitLink = ExternalLinkBuilder.buildYahooTransitUrl(
+                    AppState.origin.address,
+                    AppState.destination.address
+                );
+                document.getElementById('transitLink').href = transitLink;
+
+                document.getElementById('transitFareInput').addEventListener('change', () => this.updateTransitCosts());
+                document.getElementById('transitTransfersInput').addEventListener('change', () => this.updateTransitCosts());
+                this.updateTransitCosts();
+            }
+
+            static updateTransitCosts() {
+                const fareInput = parseInt(document.getElementById('transitFareInput').value) || 0;
+                document.getElementById('transitTotalCost').textContent = fareInput;
+            }
+
+            static renderOther(route) {
+                document.getElementById('otherDistance').textContent = route.distance.toFixed(1);
+                document.getElementById('otherDuration').textContent = route.duration;
+            }
+        }
+
+        // ============================================================
+        // 13. CsvExporter - CSV 出力
+        // ============================================================
+        class CsvExporter {
+            static export() {
+                const history = historyStore.getAll();
+                if (history.length === 0) {
+                    Ui.showToast('エクスポートする履歴がありません', 'error');
+                    return;
+                }
+
+                const headers = ['日付', '出発地', '訪問先', '交通手段', '距離(km)', '所要時間(分)', '高速料金', 'ガソリン代', '運賃', '総額'];
+                const rows = history.map(record => [
+                    new Date(record.date).toLocaleDateString('ja-JP'),
+                    record.origin,
+                    record.destination,
+                    this.modeLabel(record.mode),
+                    record.distance?.toFixed(1) || '—',
+                    record.duration || '—',
+                    record.toll || '0',
+                    record.gasoline || '0',
+                    record.fare || '0',
+                    record.totalCost || '0'
+                ]);
+
+                const csv = [headers, ...rows].map(row => 
+                    row.map(cell => `"${String(cell).replace(/"/g, '""')}"`)
+                        .join(',')
+                ).join('\n');
+
+                // BOM 付き UTF-8（Excel対応）
+                const bom = '\uFEFF';
+                const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `交通費_${new Date().toISOString().split('T')[0]}.csv`;
+                link.click();
+
+                Ui.showToast('CSVをダウンロードしました', 'success');
+            }
+
+            static modeLabel(mode) {
+                const labels = { car: '車', transit: '電車', foot: '徒歩', bike: '自転車' };
+                return labels[mode] || mode;
+            }
+        }
+
+        // ============================================================
+        // 14. HistoryUi - 履歴表示・操作
+        // ============================================================
+        class HistoryUi {
+            static render() {
+                const list = document.getElementById('historyList');
+                const history = historyStore.getAll();
+
+                if (history.length === 0) {
+                    list.innerHTML = '<div class="empty-message">検索履歴はまだありません</div>';
+                    return;
+                }
+
+                list.innerHTML = history.map(record => `
+                    <div class="list-item" data-id="${record.id}">
+                        <div class="list-item-text">
+                            <div class="list-item-label">${record.origin} → ${record.destination}</div>
+                            <div class="list-item-sub">
+                                ${new Date(record.date).toLocaleString('ja-JP')} | 
+                                ${this.modeLabel(record.mode)} | 
+                                ${record.totalCost ? `¥${record.totalCost}` : '—'}
+                            </div>
+                        </div>
+                        <div class="list-item-action">
+                            <button class="icon-button repeat-btn" data-id="${record.id}" title="この検索を繰り返す">🔄</button>
+                            <button class="icon-button delete-btn" data-id="${record.id}" title="削除">✕</button>
+                        </div>
+                    </div>
+                `).join('');
+
+                // イベントリスナー
+                list.querySelectorAll('.repeat-btn').forEach(btn => {
+                    btn.addEventListener('click', () => this.repeatSearch(btn.dataset.id));
+                });
+
+                list.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        if (confirm('この履歴を削除しますか？')) {
+                            historyStore.delete(Number(btn.dataset.id));
+                            this.render();
+                        }
+                    });
+                });
+            }
+
+            static repeatSearch(recordId) {
+                const record = historyStore.getAll().find(r => r.id === Number(recordId));
+                if (!record) return;
+
+                document.getElementById('originInput').value = record.origin;
+                document.getElementById('destInput').value = record.destination;
+
+                const modeButtons = document.querySelectorAll('.mode-tab');
+                modeButtons.forEach(btn => {
+                    if (btn.dataset.mode === record.mode) {
+                        btn.click();
+                    }
+                });
+            }
+
+            static modeLabel(mode) {
+                const labels = { car: '車', transit: '電車', foot: '徒歩', bike: '自転車' };
+                return labels[mode] || mode;
+            }
+        }
+
+        // ============================================================
+        // 15. FavoriteUi - お気に入り表示・操作
+        // ============================================================
+        class FavoriteUi {
+            static render() {
+                const list = document.getElementById('favoritesList');
+                const favorites = favoriteStore.getAll();
+
+                if (favorites.length === 0) {
+                    list.innerHTML = '<div class="empty-message">お気に入り住所はまだありません</div>';
+                    return;
+                }
+
+                list.innerHTML = favorites.map(fav => `
+                    <div class="list-item" data-id="${fav.id}">
+                        <div class="list-item-text">
+                            <div class="list-item-label">${fav.label}</div>
+                            <div class="list-item-sub">${fav.address} <span class="badge">${this.typeLabel(fav.type)}</span></div>
+                        </div>
+                        <div class="list-item-action">
+                            <button class="icon-button use-btn" data-id="${fav.id}" title="出発地として使用">📍</button>
+                            <button class="icon-button delete-btn" data-id="${fav.id}" title="削除">✕</button>
+                        </div>
+                    </div>
+                `).join('');
+
+                // イベントリスナー
+                list.querySelectorAll('.use-btn').forEach(btn => {
+                    btn.addEventListener('click', () => this.useFavorite(btn.dataset.id, 'origin'));
+                });
+
+                list.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        if (confirm('このお気に入りを削除しますか？')) {
+                            favoriteStore.delete(Number(btn.dataset.id));
+                            this.render();
+                        }
+                    });
+                });
+            }
+
+            static useFavorite(favId, field) {
+                const fav = favoriteStore.getAll().find(f => f.id === Number(favId));
+                if (!fav) return;
+
+                if (field === 'origin') {
+                    document.getElementById('originInput').value = fav.address;
+                    AppState.origin = { lat: fav.lat, lng: fav.lng, address: fav.address };
+                } else if (field === 'dest') {
+                    document.getElementById('destInput').value = fav.address;
+                    AppState.destination = { lat: fav.lat, lng: fav.lng, address: fav.address };
+                }
+
+                // モーダルを閉じる
+                document.getElementById('favoriteSelectModal').classList.remove('show');
+            }
+
+            static typeLabel(type) {
+                const labels = { home: '自宅', site: '現場', other: 'その他' };
+                return labels[type] || type;
+            }
+        }
+
+        // ============================================================
+        // 16. App - メインアプリケーション
+        // ============================================================
+        class App {
+            static init() {
+                this.setupEventListeners();
+                this.loadFavoritesAndHistory();
+                MapView.init();
+            }
+
+            static setupEventListeners() {
+                // GPS ボタン
+                document.getElementById('gpsBtn').addEventListener('click', () => this.handleGps());
+
+                // お気に入りボタン
+                document.getElementById('originFavBtn').addEventListener('click', () => {
+                    this.showFavoriteSelect('origin');
+                });
+                document.getElementById('destFavBtn').addEventListener('click', () => {
+                    this.showFavoriteSelect('dest');
+                });
+
+                // 交通手段タブ
+                document.querySelectorAll('.mode-tab').forEach(btn => {
+                    btn.addEventListener('click', e => this.changeMode(e.target.dataset.mode));
+                });
+
+                // 車両設定折りたたみ
+                document.getElementById('vehicleToggle').addEventListener('click', () => {
+                    const content = document.getElementById('vehicleContent');
+                    const header = document.getElementById('vehicleToggle');
+                    content.classList.toggle('show');
+                    header.classList.toggle('expanded');
+                });
+
+                // 検索ボタン
+                document.getElementById('searchBtn').addEventListener('click', () => this.search());
+
+                // 履歴保存ボタン
+                document.getElementById('saveHistoryBtn').addEventListener('click', () => this.saveToHistory());
+
+                // CSV出力ボタン
+                document.getElementById('exportCsvBtn').addEventListener('click', () => CsvExporter.export());
+
+                // 設定モーダル
+                document.getElementById('settingsBtn').addEventListener('click', () => {
+                    document.getElementById('settingsModal').classList.add('show');
+                });
+                document.getElementById('settingsModalClose').addEventListener('click', () => {
+                    document.getElementById('settingsModal').classList.remove('show');
+                });
+                document.getElementById('settingsModalClose2').addEventListener('click', () => {
+                    document.getElementById('settingsModal').classList.remove('show');
+                });
+
+                // 履歴・お気に入りタブ
+                document.querySelectorAll('.list-tab').forEach(btn => {
+                    btn.addEventListener('click', e => this.changeListTab(e.target.dataset.tab));
+                });
+
+                // 車両設定 入力変更時に自動保存
+                const configInputs = ['fuelEfficiency', 'fuelPrice', 'useHighway', 'companyRate'];
+                configInputs.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.addEventListener('change', () => this.saveConfig());
+                    }
+                });
+
+                // お気に入り選択モーダルを閉じる
+                document.getElementById('favoriteSelectClose').addEventListener('click', () => {
+                    document.getElementById('favoriteSelectModal').classList.remove('show');
+                });
+                document.getElementById('favoriteSelectClose2').addEventListener('click', () => {
+                    document.getElementById('favoriteSelectModal').classList.remove('show');
+                });
+
+                // お気に入り登録モーダル
+                document.getElementById('addFavoriteBtn').addEventListener('click', () => {
+                    document.getElementById('addFavoriteModal').classList.add('show');
+                });
+                document.getElementById('addFavoriteClose').addEventListener('click', () => {
+                    document.getElementById('addFavoriteModal').classList.remove('show');
+                });
+                document.getElementById('addFavoriteClose2').addEventListener('click', () => {
+                    document.getElementById('addFavoriteModal').classList.remove('show');
+                });
+                document.getElementById('saveNewFavoriteBtn').addEventListener('click', () => {
+                    this.saveNewFavorite();
+                });
+
+                // Photon オートコンプリート
+                new PlaceAutocomplete(
+                    document.getElementById('originInput'),
+                    document.getElementById('originAutoComplete'),
+                    loc => {
+                        AppState.origin = loc;
+                    }
+                );
+
+                new PlaceAutocomplete(
+                    document.getElementById('destInput'),
+                    document.getElementById('destAutoComplete'),
+                    loc => {
+                        AppState.destination = loc;
+                    }
+                );
+            }
+
+            static async handleGps() {
+                try {
+                    Ui.showToast('位置情報を取得中...');
+                    const pos = await LocationService.getCurrentLocation();
+                    const address = await LocationService.reverseGeocode(pos.lat, pos.lng);
+                    
+                    AppState.origin = { ...pos, address };
+                    document.getElementById('originInput').value = address;
+                    Ui.showToast('位置情報を取得しました', 'success');
+                } catch (error) {
+                    Ui.showToast(error.message, 'error');
+                }
+            }
+
+            static showFavoriteSelect(field) {
+                const modal = document.getElementById('favoriteSelectModal');
+                const listEl = document.getElementById('favoriteSelectList');
+                const titleEl = document.getElementById('favoriteSelectTitle');
+                const favorites = favoriteStore.getAll();
+
+                titleEl.textContent = field === 'origin' ? '出発地から選択' : '訪問先から選択';
+
+                if (favorites.length === 0) {
+                    listEl.innerHTML = '<div class="empty-message">お気に入り住所がまだありません</div>';
+                } else {
+                    listEl.innerHTML = favorites.map(fav => `
+                        <div class="list-item" style="cursor: pointer; background: #f9f9f9; border-radius: 6px; margin-bottom: 8px; padding: 12px;">
+                            <div class="list-item-text">
+                                <div class="list-item-label">${fav.label}</div>
+                                <div class="list-item-sub">${fav.address}</div>
+                            </div>
+                        </div>
+                    `).join('');
+
+                    const items = listEl.querySelectorAll('.list-item');
+                    items.forEach((item, idx) => {
+                        item.addEventListener('click', () => {
+                            FavoriteUi.useFavorite(favorites[idx].id, field);
+                            if (field === 'origin') {
+                                document.getElementById('originInput').value = favorites[idx].address;
+                                AppState.origin = {
+                                    lat: favorites[idx].lat,
+                                    lng: favorites[idx].lng,
+                                    address: favorites[idx].address
+                                };
+                            } else {
+                                document.getElementById('destInput').value = favorites[idx].address;
+                                AppState.destination = {
+                                    lat: favorites[idx].lat,
+                                    lng: favorites[idx].lng,
+                                    address: favorites[idx].address
+                                };
+                            }
+                            modal.classList.remove('show');
+                        });
+                    });
+                }
+
+                modal.classList.add('show');
+            }
+
+            static changeMode(mode) {
+                AppState.currentMode = mode;
+                document.querySelectorAll('.mode-tab').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.mode === mode);
+                });
+            }
+
+            static changeListTab(tab) {
+                document.querySelectorAll('.list-tab').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.tab === tab);
+                });
+                document.querySelectorAll('.list-content').forEach(el => {
+                    el.classList.toggle('show', el.id === `${tab}List`);
+                });
+
+                if (tab === 'history') {
+                    HistoryUi.render();
+                } else if (tab === 'favorites') {
+                    FavoriteUi.render();
+                }
+            }
+
+            static loadFavoritesAndHistory() {
+                FavoriteUi.render();
+                HistoryUi.render();
+            }
+
+            static saveConfig() {
+                const config = {
+                    fuelEfficiency: parseFloat(document.getElementById('fuelEfficiency').value) || 12,
+                    fuelPrice: parseFloat(document.getElementById('fuelPrice').value) || 170,
+                    useHighway: document.getElementById('useHighway').checked,
+                    companyRate: parseFloat(document.getElementById('companyRate').value) || null
+                };
+                configStore.setAll(config);
+            }
+
+            static async search() {
+                if (!AppState.origin || !AppState.destination) {
+                    Ui.showToast('出発地と訪問先を入力してください', 'error');
+                    return;
+                }
+
+                const searchBtn = document.getElementById('searchBtn');
+                Ui.showLoading(searchBtn, '検索中...');
+
+                try {
+                    const route = await RouteService.getRoute(
+                        AppState.origin,
+                        AppState.destination,
+                        AppState.currentMode
+                    );
+
+                    AppState.lastRoute = route;
+                    MapView.setRoute(AppState.origin, AppState.destination, route.polyline);
+                    ResultRenderer.render(route, AppState.currentMode);
+                    Ui.showToast('ルートを検索しました', 'success');
+                } catch (error) {
+                    Ui.showToast(`エラー: ${error.message}`, 'error');
+                    console.error('Search error:', error);
+                } finally {
+                    Ui.hideLoading(searchBtn, 'ルートを検索');
+                }
+            }
+
+            static saveToHistory() {
+                if (!AppState.origin || !AppState.destination || !AppState.lastRoute) {
+                    Ui.showToast('ルート検索後に保存できます', 'error');
+                    return;
+                }
+
+                let record = {
+                    origin: AppState.origin.address,
+                    destination: AppState.destination.address,
+                    mode: AppState.currentMode,
+                    distance: AppState.lastRoute.distance,
+                    duration: AppState.lastRoute.duration
+                };
+
+                // モード別に追加データを取得
+                if (AppState.currentMode === 'car') {
+                    record.toll = parseInt(document.getElementById('carTollInput').value) || 0;
+                    record.gasoline = parseInt(document.getElementById('carFuelRoundtrip').textContent) || 0;
+                    record.totalCost = parseInt(document.getElementById('carTotalCost').textContent) || 0;
+                } else if (AppState.currentMode === 'transit') {
+                    record.fare = parseInt(document.getElementById('transitFareInput').value) || 0;
+                    record.totalCost = parseInt(document.getElementById('transitTotalCost').textContent) || 0;
+                }
+
+                historyStore.add(record);
+                HistoryUi.render();
+                Ui.showToast('履歴に保存しました', 'success');
+            }
+
+            static saveNewFavorite() {
+                const label = document.getElementById('favoriteLabel').value.trim();
+                const address = document.getElementById('favoriteAddress').value;
+                const type = document.getElementById('favoriteType').value;
+
+                if (!label || !address) {
+                    Ui.showToast('表示名と住所を入力してください', 'error');
+                    return;
+                }
+
+                let location = null;
+                if (AppState.origin && AppState.origin.address === address) {
+                    location = AppState.origin;
+                } else if (AppState.destination && AppState.destination.address === address) {
+                    location = AppState.destination;
+                }
+
+                if (!location) {
+                    Ui.showToast('住所情報が見つかりません', 'error');
+                    return;
+                }
+
+                favoriteStore.add({
+                    label,
+                    address,
+                    lat: location.lat,
+                    lng: location.lng,
+                    type
+                });
+
+                document.getElementById('favoriteLabel').value = '';
+                document.getElementById('favoriteAddress').value = '';
+                document.getElementById('addFavoriteModal').classList.remove('show');
+                FavoriteUi.render();
+                Ui.showToast('お気に入りに登録しました', 'success');
+            }
+        }
+
+        // ============================================================
+        // 17. アプリケーション起動
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            App.init();
+
+            // 初期値をUIに反映
+            const config = configStore.getAll();
+            document.getElementById('fuelEfficiency').value = config.fuelEfficiency;
+            document.getElementById('fuelPrice').value = config.fuelPrice;
+            document.getElementById('useHighway').checked = config.useHighway;
+            if (config.companyRate) {
+                document.getElementById('companyRate').value = config.companyRate;
+            }
+        });
+    </script>
+</body>
+</html>
