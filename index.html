@@ -2,988 +2,1531 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>移動費見積り</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;background:#fff;color:#111;font-size:16px;line-height:1.6;-webkit-text-size-adjust:100%}
-.wrap{max-width:600px;margin:0 auto;padding:24px 20px 80px}
+:root{
+  --sf:#fff; --bg:#f8f9fa;
+  --t1:#202124; --t2:#5f6368; --t3:#80868b;
+  --bd:#dadce0; --hv:#f1f3f4; --ac:#202124;
+  --sh1:0 1px 2px rgba(60,64,67,.3),0 1px 3px 1px rgba(60,64,67,.15);
+  --sh2:0 1px 3px rgba(60,64,67,.3),0 4px 8px 3px rgba(60,64,67,.15);
+  --pw:408px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:Roboto,system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:14px;color:var(--t1);background:var(--bg);line-height:1.45;
+}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+button{background:none;border:none;cursor:pointer}
+svg{display:block;fill:currentColor;flex:0 0 auto}
 
-header{display:flex;justify-content:space-between;align-items:center;padding-bottom:20px;border-bottom:1px solid #111;margin-bottom:32px}
-header h1{font-size:20px;font-weight:600;letter-spacing:.02em}
-.icon-btn{width:40px;height:40px;border-radius:50%;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:.15s}
-.icon-btn:hover{background:#111;color:#fff;border-color:#111}
+/* ============ 骨格 ============ */
+#app{position:fixed;inset:0;display:flex}
+#map{position:absolute;inset:0;background:#e8eaed;z-index:0}
 
-.block{margin-bottom:28px}
-.label{font-size:12px;font-weight:600;letter-spacing:.08em;color:#666;margin-bottom:10px;text-transform:uppercase}
+#panel{
+  position:relative;z-index:10;width:var(--pw);height:100%;
+  background:var(--sf);box-shadow:var(--sh2);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.p-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 
-.field{position:relative}
-.row{display:flex;gap:8px}
-input[type=text],input[type=number]{width:100%;padding:14px;border:1px solid #ddd;border-radius:8px;font-size:16px;font-family:inherit;background:#fff;color:#111}
-input:focus{outline:none;border-color:#111}
-.mini-btn{flex:0 0 auto;padding:0 16px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:15px;transition:.15s}
-.mini-btn:hover{background:#f2f2f2;border-color:#111}
+/* ============ ヘッダ ============ */
+.hd{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--bd);flex:0 0 auto}
+.hd h1{font-size:16px;font-weight:500;flex:1;letter-spacing:.01em}
+.ib{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--t2);transition:background .15s}
+.ib:hover{background:var(--hv)}
+.ib:active{background:var(--bd)}
 
-.status{margin-top:8px;font-size:13px;display:flex;align-items:flex-start;gap:6px;min-height:20px}
-.status.ok{color:#111}
-.status.ng{color:#b00}
-.status.wait{color:#888}
-.dot{flex:0 0 auto;margin-top:7px;width:6px;height:6px;border-radius:50%;background:#111}
-.status.ng .dot{background:#b00}
-.status.wait .dot{background:#bbb}
+/* ============ 経路入力（Googleマップの経路パネル準拠） ============ */
+.dir{display:flex;gap:8px;padding:14px 12px 10px;flex:0 0 auto}
+.rail{width:20px;display:flex;flex-direction:column;align-items:center;padding:14px 0 14px}
+.rd{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
+.rd.o{border:2px solid var(--t3);background:var(--sf)}
+.rd.d{background:var(--t1);border-radius:2px;width:10px;height:10px;transform:rotate(45deg)}
+.rl{flex:1;width:0;border-left:2px dotted var(--bd);margin:5px 0}
+.dfs{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}
+.df{position:relative;display:flex;align-items:center;background:var(--hv);border-radius:8px;transition:box-shadow .15s,background .15s}
+.df:focus-within{background:var(--sf);box-shadow:var(--sh1)}
+.df input{flex:1;min-width:0;border:none;outline:none;background:none;padding:11px 4px 11px 14px;font-size:15px}
+.df input::placeholder{color:var(--t3)}
+.df .ib{width:36px;height:36px;margin-right:3px}
+.swapc{display:flex;align-items:flex-start;padding-top:16px}
 
-.cand{position:absolute;z-index:900;left:0;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #111;border-radius:8px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.12);display:none}
+/* 候補リスト */
+.cand{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:60;
+  background:var(--sf);border-radius:8px;box-shadow:var(--sh2);overflow:hidden;display:none;max-height:280px;overflow-y:auto}
 .cand.on{display:block}
-.cand-item{padding:12px 14px;cursor:pointer;font-size:14px;border-bottom:1px solid #f0f0f0}
-.cand-item:last-child{border-bottom:none}
-.cand-item:hover,.cand-item.sel{background:#f2f2f2}
-.cand-src{font-size:11px;color:#888;margin-left:6px}
-.cand-empty{padding:14px;font-size:13px;color:#888}
+.ci{display:flex;align-items:center;gap:12px;padding:11px 14px;cursor:pointer}
+.ci:hover,.ci.sel{background:var(--hv)}
+.ci svg{color:var(--t3)}
+.ci-tx{flex:1;min-width:0}
+.ci-t{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ci-s{font-size:12px;color:var(--t3)}
+.ci-empty{padding:14px;font-size:13px;color:var(--t3)}
 
-.tabs{display:flex;border-bottom:1px solid #e5e5e5}
-.tab{flex:1;padding:14px 4px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;font-size:14px;font-family:inherit;color:#999;cursor:pointer;transition:.15s}
-.tab.on{color:#111;border-bottom-color:#111;font-weight:600}
+/* 確定ステータス */
+.st{font-size:12px;padding:2px 0 0 2px;display:flex;align-items:center;gap:5px;min-height:17px}
+.st.ok{color:#188038}.st.ng{color:#c5221f}.st.wait{color:var(--t3)}
 
-.acc-head{width:100%;display:flex;justify-content:space-between;align-items:center;padding:14px 0;background:none;border:none;border-top:1px solid #e5e5e5;font-size:14px;font-family:inherit;font-weight:600;color:#111;cursor:pointer}
-.acc-head .arw{transition:.2s}
-.acc-head.on .arw{transform:rotate(90deg)}
-.acc-body{display:none;padding:4px 0 16px}
-.acc-body.on{display:block}
-.frow{display:flex;align-items:center;gap:12px;margin-bottom:12px}
-.frow label{flex:0 0 130px;font-size:13px;color:#555}
-.frow input{flex:1}
-.chk{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:14px}
-.chk input{width:18px;height:18px;accent-color:#111;flex:0 0 auto}
+/* ============ 交通手段バー ============ */
+.modes{display:flex;border-bottom:1px solid var(--bd);padding:0 6px;flex:0 0 auto}
+.mode{flex:1;padding:9px 2px 7px;display:flex;flex-direction:column;align-items:center;gap:2px;
+  color:var(--t2);border-bottom:3px solid transparent;margin-bottom:-1px;transition:color .15s}
+.mode:hover{color:var(--t1)}
+.mode.on{color:var(--ac);border-bottom-color:var(--ac)}
+.mode .mt{font-size:11px;font-weight:500;letter-spacing:-.02em;white-space:nowrap}
+.mode .mn{font-size:10px;color:var(--t3)}
+.mode.on .mn{color:var(--t2)}
 
-.btn{width:100%;padding:16px;background:#111;color:#fff;border:none;border-radius:999px;font-size:16px;font-family:inherit;font-weight:600;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:10px}
-.btn:hover:not(:disabled){background:#333}
-.btn:disabled{background:#ccc;cursor:not-allowed}
-.spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;display:none}
-.btn.busy .spin{display:block}
+/* ============ アクション ============ */
+.act-row{padding:12px;flex:0 0 auto}
+.btn{width:100%;height:44px;border-radius:22px;background:var(--ac);color:#fff;
+  font-size:14px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:9px;
+  box-shadow:var(--sh1);transition:opacity .15s}
+.btn:hover{opacity:.88}
+.btn:disabled{background:var(--bd);color:var(--t3);box-shadow:none;cursor:default}
+.sp{width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;display:none}
 @keyframes sp{to{transform:rotate(360deg)}}
+.btn.busy .sp{display:block}
 
-#map{width:100%;height:260px;border:1px solid #e5e5e5;border-radius:8px;background:#f7f7f7;margin-bottom:24px}
+/* ============ 結果 ============ */
+.res{padding:0 12px 16px}
+.rcard{border:1px solid var(--bd);border-radius:10px;overflow:hidden;margin-bottom:12px}
+.rhead{padding:14px 16px;border-bottom:1px solid var(--bd)}
+.rmain{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.rdist{font-size:22px;font-weight:400;letter-spacing:-.01em}
+.rtime{font-size:14px;color:var(--t2)}
+.rtag{font-size:11px;color:var(--t3);margin-top:3px}
+.rbody{padding:6px 16px 14px}
+.ln{display:flex;align-items:center;gap:10px;padding:8px 0;min-height:38px}
+.ln .k{color:var(--t2);font-size:13px;flex:1;min-width:0}
+.ln .v{font-weight:500;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ln input{width:96px;padding:8px 10px;border:1px solid var(--bd);border-radius:6px;text-align:right;
+  font-variant-numeric:tabular-nums;outline:none}
+.ln input:focus{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac)}
+.chip{display:inline-block;font-size:10px;padding:1px 7px;border-radius:9px;background:var(--hv);color:var(--t2);margin-left:6px;vertical-align:1px}
+.chip.au{background:#e8f0fe;color:#1967d2}
+.chip.mem{background:#e6f4ea;color:#188038}
+.ext{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--t2);
+  padding:7px 10px;border:1px solid var(--bd);border-radius:16px;text-decoration:none;white-space:nowrap}
+.ext:hover{background:var(--hv)}
+.hr{height:1px;background:var(--bd);margin:6px 0}
+.sub{background:var(--bg);border-radius:8px;padding:10px 12px;margin:8px 0}
+.sub .ln{padding:4px 0;min-height:0}
+.sub .ln .k,.sub .ln .v{font-size:12px}
+.tot{background:var(--t1);color:#fff;border-radius:8px;padding:13px 16px;margin-top:10px;
+  display:flex;align-items:center;justify-content:space-between}
+.tot .k{font-size:13px;color:rgba(255,255,255,.75)}
+.tot .v{font-size:21px;font-weight:500;font-variant-numeric:tabular-nums}
+.note{font-size:11.5px;color:var(--t3);line-height:1.55;padding:10px 16px 0}
 
-.card{border:1px solid #111;border-radius:12px;padding:20px;margin-bottom:20px}
-.card h3{font-size:15px;font-weight:600;padding-bottom:14px;border-bottom:1px solid #e5e5e5;margin-bottom:16px;display:flex;justify-content:space-between;align-items:baseline}
-.src-tag{font-size:11px;font-weight:400;color:#888}
-.line{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;font-size:14px}
-.line .k{color:#666;flex:1 1 auto}
-.line .v{font-weight:600;text-align:right;white-space:nowrap}
-.line input{width:110px;padding:9px 10px;font-size:14px;text-align:right}
-.line a.ext{font-size:12px;padding:9px 11px;border:1px solid #ddd;border-radius:8px;text-decoration:none;color:#111;white-space:nowrap}
-.line a.ext:hover{background:#111;color:#fff;border-color:#111}
-.sep{border-top:1px solid #e5e5e5;margin:14px 0}
-.total{background:#111;color:#fff;border-radius:8px;padding:14px 16px;margin-top:14px}
-.total .line{padding:0;font-size:16px}
-.total .k{color:rgba(255,255,255,.7)}
-.total .v{font-size:20px}
-.note{font-size:12px;color:#888;margin-top:12px;line-height:1.5}
+/* 内訳（検算用） */
+.bkd{border-top:1px solid var(--bd)}
+.bkd-h{width:100%;display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;font-size:13px;color:var(--t2)}
+.bkd-h:hover{background:var(--hv)}
+.bkd-h .arw{transition:transform .2s}
+.bkd-h.on .arw{transform:rotate(180deg)}
+.bkd-b{display:none;padding:2px 16px 14px;background:var(--bg)}
+.bkd-b.on{display:block}
+.bkd-t{font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin:12px 0 6px}
+.bkd-t:first-child{margin-top:6px}
+.bstep{display:flex;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd);font-size:12px}
+.bstep:last-child{border-bottom:none}
+.bstep .bl{color:var(--t2);flex:0 0 auto;min-width:96px}
+.bstep .be{color:var(--t3);flex:1;font-variant-numeric:tabular-nums;font-size:11.5px}
+.bstep .bv{font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+.bstep.fin .bv{color:var(--t1)}
+.bstep.fin{background:rgba(0,0,0,.03)}
 
-.acts{display:flex;gap:8px;margin-top:16px}
-.act{flex:1;padding:13px;border:1px solid #ddd;border-radius:999px;background:#fff;font-size:13px;font-family:inherit;font-weight:600;cursor:pointer;transition:.15s}
-.act:hover{background:#111;color:#fff;border-color:#111}
+/* 出力ボタン群 */
+.outs{display:flex;gap:8px;padding:0 12px 14px;flex-wrap:wrap}
+.out{flex:1;min-width:120px;height:40px;border:1px solid var(--bd);border-radius:20px;
+  display:flex;align-items:center;justify-content:center;gap:7px;font-size:13px;color:var(--t1);
+  background:var(--sf);transition:background .15s}
+.out:hover{background:var(--hv)}
+.out.pri{background:var(--ac);color:#fff;border-color:var(--ac)}
+.out.pri:hover{opacity:.88;background:var(--ac)}
 
-.item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px;border:1px solid #e5e5e5;border-radius:8px;margin-bottom:8px}
-.item-main{flex:1;min-width:0;cursor:pointer}
-.item-t{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.item-s{font-size:12px;color:#888;margin-top:3px}
-.item-x{flex:0 0 auto;width:32px;height:32px;border:1px solid #e5e5e5;border-radius:6px;background:#fff;cursor:pointer;font-size:13px}
-.item-x:hover{background:#111;color:#fff}
-.empty{padding:28px 0;text-align:center;color:#aaa;font-size:13px}
+/* ============ リスト（履歴・お気に入り） ============ */
+.ltabs{display:flex;border-bottom:1px solid var(--bd);padding:0 12px}
+.ltab{flex:1;padding:11px 4px;font-size:13px;color:var(--t2);border-bottom:3px solid transparent;margin-bottom:-1px}
+.ltab.on{color:var(--ac);font-weight:500;border-bottom-color:var(--ac)}
+.li{display:flex;align-items:center;gap:12px;padding:11px 16px;cursor:pointer;transition:background .15s}
+.li:hover{background:var(--hv)}
+.li svg{color:var(--t3)}
+.li-tx{flex:1;min-width:0}
+.li-t{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.li-s{font-size:11.5px;color:var(--t3);margin-top:1px}
+.li-x{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--t3);flex:0 0 auto}
+.li-x:hover{background:var(--bd)}
+.empty{padding:32px 16px;text-align:center;color:var(--t3);font-size:13px}
+.lact{display:flex;gap:8px;padding:10px 12px 16px}
 
-.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;padding:20px}
-.modal.on{display:flex}
-.modal-in{background:#fff;border-radius:14px;padding:24px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto}
-.modal-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
-.modal-h span{font-size:16px;font-weight:600}
-.modal-x{width:32px;height:32px;border:none;background:none;font-size:20px;cursor:pointer;color:#999}
-.modal-f{display:flex;gap:8px;margin-top:20px}
-.modal-b{flex:1;padding:13px;border-radius:999px;border:1px solid #ddd;background:#fff;font-size:14px;font-family:inherit;font-weight:600;cursor:pointer}
-.modal-b.pri{background:#111;color:#fff;border-color:#111}
+/* ============ 地図まわり ============ */
+.leaflet-control-attribution{font-size:10px!important;background:rgba(255,255,255,.75)!important}
+.leaflet-control-zoom{border:none!important;box-shadow:var(--sh1)!important;border-radius:8px!important;overflow:hidden}
+.leaflet-control-zoom a{width:36px!important;height:36px!important;line-height:36px!important;
+  color:var(--t2)!important;border:none!important;background:var(--sf)!important}
+.leaflet-control-zoom a:hover{background:var(--hv)!important}
+.mk{width:22px;height:22px;border-radius:50%;border:3px solid #fff;box-shadow:var(--sh1)}
+.mk.o{background:#fff;border-color:var(--t1)}
+.mk.d{background:var(--t1)}
 
-.diag{font-size:13px;border:1px solid #e5e5e5;border-radius:8px;padding:14px;margin-bottom:14px}
-.diag-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f2f2f2}
-.diag-row:last-child{border-bottom:none}
-.diag-ok{color:#0a0;font-weight:600}
-.diag-ng{color:#b00;font-weight:600}
-.diag-wait{color:#999}
+/* ============ モーダル ============ */
+.md{position:fixed;inset:0;background:rgba(32,33,36,.5);z-index:900;display:none;
+  align-items:center;justify-content:center;padding:20px}
+.md.on{display:flex}
+.md-in{background:var(--sf);border-radius:12px;box-shadow:var(--sh2);width:100%;max-width:520px;
+  max-height:86vh;display:flex;flex-direction:column;overflow:hidden}
+.md-h{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--bd)}
+.md-h h2{font-size:16px;font-weight:500;flex:1}
+.md-b{padding:16px 18px;overflow-y:auto;flex:1}
+.md-f{display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--bd)}
+.md-btn{flex:1;height:40px;border-radius:20px;font-size:14px;font-weight:500;border:1px solid var(--bd)}
+.md-btn:hover{background:var(--hv)}
+.md-btn.pri{background:var(--ac);color:#fff;border-color:var(--ac)}
+.md-btn.pri:hover{opacity:.88;background:var(--ac)}
+.fld{margin-bottom:14px}
+.fld label{display:block;font-size:12px;color:var(--t2);margin-bottom:5px}
+.fld input,.fld select{width:100%;padding:10px 12px;border:1px solid var(--bd);border-radius:6px;outline:none;background:var(--sf)}
+.fld input:focus,.fld select:focus{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac)}
+.fld2{display:flex;gap:12px}
+.fld2>*{flex:1}
+.ck{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:13px;cursor:pointer}
+.ck input{width:17px;height:17px;accent-color:var(--ac);flex:0 0 auto}
+.tsv{width:100%;height:170px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
+  border:1px solid var(--bd);border-radius:6px;padding:10px;white-space:pre;overflow:auto;outline:none;resize:vertical}
+.diag{border:1px solid var(--bd);border-radius:8px;overflow:hidden;margin-bottom:12px}
+.dg{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;font-size:13px;border-bottom:1px solid var(--bd)}
+.dg:last-child{border-bottom:none}
+.dg-ok{color:#188038;font-weight:500}.dg-ng{color:#c5221f;font-weight:500}.dg-w{color:var(--t3)}
 
-.toast{position:fixed;left:20px;right:20px;bottom:24px;max-width:560px;margin:0 auto;background:#111;color:#fff;padding:14px 18px;border-radius:10px;font-size:14px;z-index:2000;display:none;box-shadow:0 8px 30px rgba(0,0,0,.25)}
-.toast.on{display:block}
-.toast.ng{background:#b00}
+/* ============ トースト ============ */
+.tst{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(80px);
+  background:#323232;color:#fff;padding:13px 20px;border-radius:8px;font-size:13.5px;z-index:1000;
+  box-shadow:var(--sh2);opacity:0;transition:.22s cubic-bezier(.2,0,0,1);pointer-events:none;max-width:90vw}
+.tst.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.tst.ng{background:#c5221f}
 
-@media(max-width:600px){
-.wrap{padding:20px 16px 60px}
-.frow{flex-wrap:wrap}
-.frow label{flex:1 1 100%}
-.line{flex-wrap:wrap}
-.line input{width:100%}
-.line a.ext{width:100%;text-align:center}
+/* ============ モバイル ============ */
+@media(max-width:899px){
+  #app{display:block}
+  #panel{
+    position:absolute;left:0;right:0;bottom:0;top:auto;width:auto;height:auto;
+    max-height:92%;border-radius:14px 14px 0 0;box-shadow:0 -2px 12px rgba(60,64,67,.22);
+    transition:transform .26s cubic-bezier(.2,0,0,1);
+  }
+  #panel.peek{transform:translateY(calc(100% - var(--peek,232px)))}
+  #panel.full{transform:translateY(0)}
+  .grip{display:block;width:34px;height:4px;border-radius:2px;background:var(--bd);margin:8px auto 2px;flex:0 0 auto}
+  .hd{padding:2px 12px 8px;border-bottom:none}
+  .hd h1{font-size:15px}
+  .p-scroll{max-height:calc(92vh - 60px)}
+  .dir{padding:6px 12px 8px}
+}
+@media(min-width:900px){
+  .grip{display:none}
+  #panel{border-radius:0}
+}
+.grip{display:none}
+@supports(padding:env(safe-area-inset-bottom)){
+  @media(max-width:899px){#panel{padding-bottom:env(safe-area-inset-bottom)}}
 }
 </style>
 </head>
 <body>
-<div class="wrap">
 
-<header>
-  <h1>移動費見積り</h1>
-  <button class="icon-btn" id="btnSettings" title="設定・接続診断">⚙</button>
-</header>
+<div id="app">
+  <div id="map"></div>
 
-<!-- 出発地 -->
-<div class="block">
-  <div class="label">出発地</div>
-  <div class="field">
-    <div class="row">
-      <input type="text" id="inOrigin" placeholder="住所・駅名・施設名" autocomplete="off">
-      <button class="mini-btn" id="btnGps" title="現在地">現在地</button>
-      <button class="mini-btn" id="btnFavO" title="お気に入り">★</button>
+  <div id="panel" class="peek">
+    <div class="grip" id="grip"></div>
+
+    <div class="hd">
+      <h1>移動費見積り</h1>
+      <button class="ib" id="btnList" title="履歴・お気に入り" aria-label="履歴">
+        <svg width="20" height="20" viewBox="0 0 24 24"><path d="M13 3a9 9 0 00-9 9H1l3.9 3.9.07.14L9 12H6a7 7 0 117 7 6.9 6.9 0 01-4.9-2l-1.4 1.4A8.9 8.9 0 0013 21a9 9 0 000-18zm-1 5v5l4.3 2.5.7-1.2-3.5-2.1V8z"/></svg>
+      </button>
+      <button class="ib" id="btnCfg" title="設定" aria-label="設定">
+        <svg width="20" height="20" viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 000-2l2.1-1.6a.5.5 0 00.1-.6l-2-3.4a.5.5 0 00-.6-.2l-2.5 1a7.3 7.3 0 00-1.7-1l-.4-2.6a.5.5 0 00-.5-.4h-4a.5.5 0 00-.5.4l-.4 2.6a7.3 7.3 0 00-1.7 1l-2.5-1a.5.5 0 00-.6.2l-2 3.4a.5.5 0 00.1.6L4.6 11a7.6 7.6 0 000 2l-2.1 1.6a.5.5 0 00-.1.6l2 3.4c.1.2.4.3.6.2l2.5-1a7.3 7.3 0 001.7 1l.4 2.6c0 .2.2.4.5.4h4c.3 0 .5-.2.5-.4l.4-2.6a7.3 7.3 0 001.7-1l2.5 1c.2.1.5 0 .6-.2l2-3.4a.5.5 0 00-.1-.6zM12 15.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z"/></svg>
+      </button>
     </div>
-    <div class="cand" id="candOrigin"></div>
-    <div class="status wait" id="stOrigin"><span class="dot"></span><span>未確定</span></div>
-  </div>
-</div>
 
-<!-- 訪問先 -->
-<div class="block">
-  <div class="label">訪問先</div>
-  <div class="field">
-    <div class="row">
-      <input type="text" id="inDest" placeholder="住所・駅名・施設名" autocomplete="off">
-      <button class="mini-btn" id="btnFavD" title="お気に入り">★</button>
+    <div class="p-scroll" id="scroll">
+
+      <div class="dir">
+        <div class="rail"><span class="rd o"></span><span class="rl"></span><span class="rd d"></span></div>
+        <div class="dfs">
+          <div>
+            <div class="df">
+              <input type="text" id="inOrigin" placeholder="出発地" autocomplete="off" enterkeyhint="search">
+              <button class="ib" id="btnGps" title="現在地" aria-label="現在地">
+                <svg width="19" height="19" viewBox="0 0 24 24"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zm8.9 3a9 9 0 00-7.9-7.9V1h-2v2.1A9 9 0 003.1 11H1v2h2.1a9 9 0 007.9 7.9V23h2v-2.1a9 9 0 007.9-7.9H23v-2zM12 19a7 7 0 110-14 7 7 0 010 14z"/></svg>
+              </button>
+            </div>
+            <div class="st wait" id="stOrigin"><span>未確定</span></div>
+            <div class="cand" id="candOrigin"></div>
+          </div>
+          <div>
+            <div class="df">
+              <input type="text" id="inDest" placeholder="訪問先" autocomplete="off" enterkeyhint="search">
+              <button class="ib" id="btnFavD" title="お気に入り" aria-label="お気に入り">
+                <svg width="19" height="19" viewBox="0 0 24 24"><path d="M12 17.3l-6.2 3.7 1.6-7L2 9.2l7.2-.6L12 2l2.8 6.6 7.2.6-5.4 4.8 1.6 7z"/></svg>
+              </button>
+            </div>
+            <div class="st wait" id="stDest"><span>未確定</span></div>
+            <div class="cand" id="candDest"></div>
+          </div>
+        </div>
+        <div class="swapc">
+          <button class="ib" id="btnSwap" title="出発地と訪問先を入れ替え" aria-label="入れ替え">
+            <svg width="19" height="19" viewBox="0 0 24 24"><path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="modes" id="modes">
+        <button class="mode on" data-mode="car">
+          <svg width="21" height="21" viewBox="0 0 24 24"><path d="M18.9 6c-.2-.6-.8-1-1.4-1H6.5c-.7 0-1.2.4-1.4 1L3 12v8c0 .6.4 1 1 1h1c.6 0 1-.4 1-1v-1h12v1c0 .6.4 1 1 1h1c.6 0 1-.4 1-1v-8zM6.5 16a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm11 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3zM5 11l1.5-4.5h11L19 11z"/></svg>
+          <span class="mt" data-t>車</span><span class="mn">—</span>
+        </button>
+        <button class="mode" data-mode="transit">
+          <svg width="21" height="21" viewBox="0 0 24 24"><path d="M12 2c-4 0-8 .5-8 4v9.5A3.5 3.5 0 007.5 19L6 20.5v.5h12v-.5L16.5 19a3.5 3.5 0 003.5-3.5V6c0-3.5-3.6-4-8-4zM7.5 17a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm3.5-7H6V6h5zm2 0V6h5v4zm3.5 7a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg>
+          <span class="mt" data-t>電車</span><span class="mn">—</span>
+        </button>
+        <button class="mode" data-mode="walk">
+          <svg width="21" height="21" viewBox="0 0 24 24"><path d="M13.5 5.5a2 2 0 100-4 2 2 0 000 4zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3A7.3 7.3 0 0019 13v-2c-1.8 0-3.3-1-4.1-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6z"/></svg>
+          <span class="mt" data-t>徒歩</span><span class="mn">—</span>
+        </button>
+        <button class="mode" data-mode="bike">
+          <svg width="21" height="21" viewBox="0 0 24 24"><path d="M15.5 5.5a2 2 0 100-4 2 2 0 000 4zM5 12a5 5 0 100 10 5 5 0 000-10zm0 8.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7zm5.8-10l2.4-2.4.8.8a6.6 6.6 0 004.5 1.6V8.6a4.6 4.6 0 01-3.1-1.2l-1.9-1.9c-.4-.3-.8-.5-1.4-.5s-1 .2-1.4.5L8 8.3a2 2 0 000 2.8L11 14v5h2v-6.2zM19 12a5 5 0 100 10 5 5 0 000-10zm0 8.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z"/></svg>
+          <span class="mt" data-t>自転車</span><span class="mn">—</span>
+        </button>
+      </div>
+
+      <div class="act-row">
+        <button class="btn" id="btnSearch"><span class="sp"></span><span id="btnTxt">ルートを検索</span></button>
+      </div>
+
+      <div class="res" id="res"></div>
+
+      <div id="listWrap" style="display:none">
+        <div class="ltabs">
+          <button class="ltab on" data-list="hist">履歴</button>
+          <button class="ltab" data-list="fav">お気に入り</button>
+        </div>
+        <div id="listBody"></div>
+        <div class="lact" id="listAct" style="display:none">
+          <button class="out pri" id="btnCopyAll">
+            <svg width="15" height="15" viewBox="0 0 24 24"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12zm3 4H8a2 2 0 00-2 2v14c0 1.1.9 2 2 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11z"/></svg>
+            全件コピー
+          </button>
+          <button class="out" id="btnCsv">CSV</button>
+          <button class="out" id="btnClear">消去</button>
+        </div>
+      </div>
+
     </div>
-    <div class="cand" id="candDest"></div>
-    <div class="status wait" id="stDest"><span class="dot"></span><span>未確定</span></div>
-  </div>
-</div>
-
-<!-- 交通手段 -->
-<div class="block">
-  <div class="tabs" id="modeTabs">
-    <button class="tab on" data-mode="car">車</button>
-    <button class="tab" data-mode="transit">電車</button>
-    <button class="tab" data-mode="walk">徒歩</button>
-    <button class="tab" data-mode="bike">自転車</button>
   </div>
 </div>
 
 <!-- 設定 -->
-<div class="block">
-  <button class="acc-head" id="accVehicle"><span>車両・経費設定</span><span class="arw">›</span></button>
-  <div class="acc-body" id="accVehicleBody">
-    <div class="frow"><label>燃費 (km/L)</label><input type="number" id="cfgEff" step="0.1" min="1" value="12"></div>
-    <div class="frow"><label>ガソリン単価 (円/L)</label><input type="number" id="cfgPrice" step="1" min="1" value="175"></div>
-    <div class="frow"><label>会社規定 (円/km)</label><input type="number" id="cfgRate" step="1" min="0" placeholder="任意"></div>
-    <div class="chk"><input type="checkbox" id="cfgRound" checked><label for="cfgRound">往復で計算する</label></div>
-    <div class="chk"><input type="checkbox" id="cfgAvoidToll"><label for="cfgAvoidToll">高速道路を使わないルートで検索</label></div>
-  </div>
+<div class="md" id="mdCfg">
+  <div class="md-in">
+    <div class="md-h"><h2>設定</h2><button class="ib" data-x="mdCfg">✕</button></div>
+    <div class="md-b">
+      <div class="fld2">
+        <div class="fld"><label>燃費 (km/L)</label><input type="number" id="cfgEff" step="0.1" min="0.1" value="12"></div>
+        <div class="fld"><label>ガソリン単価 (円/L)</label><input type="number" id="cfgPrice" step="1" min="1" value="175"></div>
+      </div>
+      <div class="fld2">
+        <div class="fld"><label>車種</label><select id="cfgClass">
+          <option value="kei">軽自動車</option><option value="normal" selected>普通車</option>
+          <option value="medium">中型車</option><option value="large">大型車</option></select></div>
+        <div class="fld"><label>会社規定 (円/km)</label><input type="number" id="cfgRate" step="1" min="0" placeholder="任意"></div>
+      </div>
+      <div class="fld"><label>ETC割引</label><select id="cfgDiscount">
+        <option value="0" selected>なし</option>
+        <option value="0.3">深夜割引 30%（0〜4時）</option>
+        <option value="0.3">休日割引 30%（土日祝）</option></select></div>
+      <label class="ck"><input type="checkbox" id="cfgUrban"><span>大都市近郊区間（首都圏・近畿圏）で計算する</span></label>
+      <label class="ck"><input type="checkbox" id="cfgRound" checked><span>往復で計算する</span></label>
+      <label class="ck"><input type="checkbox" id="cfgAvoid"><span>高速道路を使わないルートを探す</span></label>
 
-  <button class="acc-head" id="accManual"><span>距離を手入力する（API不調時）</span><span class="arw">›</span></button>
-  <div class="acc-body" id="accManualBody">
-    <div class="frow"><label>片道距離 (km)</label><input type="number" id="manDist" step="0.1" min="0" placeholder="例 16.4"></div>
-    <div class="frow"><label>片道所要 (分)</label><input type="number" id="manMin" step="1" min="0" placeholder="例 35"></div>
-    <button class="act" id="btnManual" style="width:100%">この距離で計算する</button>
-    <div class="note">検索が失敗する場合や、実際の走行距離が分かっている場合はこちらから直接計算できます。住所の確定は不要です。</div>
-  </div>
-</div>
+      <div class="hr" style="margin:16px 0"></div>
+      <label style="font-size:12px;color:var(--t2)">距離を手入力（API不調時・実走行距離が分かる場合）</label>
+      <div class="fld2" style="margin-top:6px">
+        <div class="fld"><label>片道距離 (km)</label><input type="number" id="manDist" step="0.1" min="0" placeholder="16.4"></div>
+        <div class="fld"><label>片道所要 (分)</label><input type="number" id="manMin" step="1" min="0" placeholder="35"></div>
+      </div>
+      <button class="out" id="btnManual" style="width:100%">この距離で計算する</button>
 
-<div class="block">
-  <button class="btn" id="btnSearch"><span class="spin"></span><span id="btnSearchTxt">ルートを検索</span></button>
-</div>
+      <div class="hr" style="margin:16px 0"></div>
+      <label style="font-size:12px;color:var(--t2)">接続診断</label>
+      <div class="diag" style="margin-top:6px">
+        <div class="dg"><span>国土地理院 住所検索</span><span class="dg-w" id="dgGsi">未実行</span></div>
+        <div class="dg"><span>Nominatim 検索</span><span class="dg-w" id="dgNom">未実行</span></div>
+        <div class="dg"><span>OSRM ルート探索</span><span class="dg-w" id="dgOsrm">未実行</span></div>
+        <div class="dg"><span>地図タイル</span><span class="dg-w" id="dgLeaf">未実行</span></div>
+      </div>
+      <button class="out" id="btnDiag" style="width:100%">診断を実行</button>
+      <p class="note" id="diagNote" style="padding:10px 0 0"></p>
 
-<div id="map"></div>
-
-<!-- 結果 -->
-<div id="result"></div>
-
-<!-- 履歴・お気に入り -->
-<div class="block">
-  <div class="tabs" id="listTabs">
-    <button class="tab on" data-list="hist">履歴</button>
-    <button class="tab" data-list="fav">お気に入り</button>
-  </div>
-  <div id="listBody" style="margin-top:16px"></div>
-  <div class="acts" id="listActs" style="display:none">
-    <button class="act" id="btnCsv">CSV出力</button>
-    <button class="act" id="btnClearHist">履歴を全消去</button>
-  </div>
-</div>
-
-</div>
-
-<!-- 設定モーダル -->
-<div class="modal" id="mdSettings">
-  <div class="modal-in">
-    <div class="modal-h"><span>設定・接続診断</span><button class="modal-x" data-close="mdSettings">✕</button></div>
-
-    <div class="label">接続診断</div>
-    <div class="diag" id="diagBox">
-      <div class="diag-row"><span>国土地理院 住所検索</span><span class="diag-wait" id="dgGsi">未実行</span></div>
-      <div class="diag-row"><span>Nominatim 検索</span><span class="diag-wait" id="dgNom">未実行</span></div>
-      <div class="diag-row"><span>OSRM ルート探索</span><span class="diag-wait" id="dgOsrm">未実行</span></div>
-      <div class="diag-row"><span>地図タイル / Leaflet</span><span class="diag-wait" id="dgLeaf">未実行</span></div>
+      <div class="hr" style="margin:16px 0"></div>
+      <p style="font-size:11.5px;color:var(--t3);line-height:1.6">
+        地図・住所検索・経路探索は国土地理院API / OpenStreetMap / OSRM を利用（APIキー不要・無料）。<br>
+        <b>高速料金</b>は経路から高速走行距離を検出し、NEXCO公表の計算式で概算します。均一料金区間・首都高・本四道路は体系が異なるため誤差が出ます。<br>
+        <b>電車運賃</b>は無料APIで数値を取得できないため、JR本州3社の幹線運賃表から距離で推定した目安です。<br>
+        金額を修正すると区間ごとに記憶され、次回同じ区間で自動入力されます。
+      </p>
     </div>
-    <button class="act" id="btnDiag" style="width:100%">診断を実行</button>
-    <div class="note" id="diagNote"></div>
+    <div class="md-f"><button class="md-btn pri" data-x="mdCfg">閉じる</button></div>
+  </div>
+</div>
 
-    <div class="sep"></div>
-    <div class="note">
-      本ツールは国土地理院API・OpenStreetMap・OSRM を利用しています（APIキー不要・無料）。<br>
-      高速料金と電車運賃は自動取得せず、外部サイトで確認して手入力する方式です。<br>
-      公開APIは低頻度利用を前提としています。連続した大量検索は避けてください。
+<!-- コピー -->
+<div class="md" id="mdCopy">
+  <div class="md-in">
+    <div class="md-h"><h2 id="copyTitle">スプレッドシートへ貼り付け</h2><button class="ib" data-x="mdCopy">✕</button></div>
+    <div class="md-b">
+      <label class="ck"><input type="checkbox" id="cpHead" checked><span>見出し行を含める</span></label>
+      <textarea class="tsv" id="cpText" readonly spellcheck="false"></textarea>
+      <p style="font-size:11.5px;color:var(--t3);margin-top:10px;line-height:1.6">
+        タブ区切りなので、スプレッドシートのセルを選んで貼り付けると各列に自動で分かれます。<br>
+        コピーできない場合は上の枠内を選択して手動でコピーしてください。
+      </p>
     </div>
-    <div class="modal-f"><button class="modal-b" data-close="mdSettings">閉じる</button></div>
+    <div class="md-f">
+      <button class="md-btn pri" id="btnDoCopy">クリップボードにコピー</button>
+      <button class="md-btn" data-x="mdCopy">閉じる</button>
+    </div>
   </div>
 </div>
 
 <!-- お気に入り選択 -->
-<div class="modal" id="mdFav">
-  <div class="modal-in">
-    <div class="modal-h"><span id="mdFavTitle">お気に入り</span><button class="modal-x" data-close="mdFav">✕</button></div>
-    <div id="mdFavList"></div>
-    <div class="modal-f"><button class="modal-b" data-close="mdFav">閉じる</button></div>
+<div class="md" id="mdFav">
+  <div class="md-in">
+    <div class="md-h"><h2 id="favTitle">お気に入り</h2><button class="ib" data-x="mdFav">✕</button></div>
+    <div class="md-b" id="favList"></div>
+    <div class="md-f"><button class="md-btn" data-x="mdFav">閉じる</button></div>
   </div>
 </div>
 
 <!-- お気に入り登録 -->
-<div class="modal" id="mdAddFav">
-  <div class="modal-in">
-    <div class="modal-h"><span>お気に入りに登録</span><button class="modal-x" data-close="mdAddFav">✕</button></div>
-    <div class="frow" style="display:block"><label style="display:block;margin-bottom:6px">表示名</label><input type="text" id="favLabel" placeholder="例：〇〇工務店"></div>
-    <div class="frow" style="display:block;margin-top:12px"><label style="display:block;margin-bottom:6px">住所</label><input type="text" id="favAddr" readonly></div>
-    <div class="modal-f">
-      <button class="modal-b pri" id="btnSaveFav">登録</button>
-      <button class="modal-b" data-close="mdAddFav">キャンセル</button>
+<div class="md" id="mdAdd">
+  <div class="md-in">
+    <div class="md-h"><h2>お気に入りに登録</h2><button class="ib" data-x="mdAdd">✕</button></div>
+    <div class="md-b">
+      <div class="fld"><label>表示名</label><input type="text" id="favLabel" placeholder="例：〇〇工務店"></div>
+      <div class="fld"><label>住所</label><input type="text" id="favAddr" readonly></div>
+    </div>
+    <div class="md-f">
+      <button class="md-btn pri" id="btnSaveFav">登録</button>
+      <button class="md-btn" data-x="mdAdd">キャンセル</button>
     </div>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="tst" id="tst"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-/* =========================================================================
-   Core : 純粋関数のみ。DOM・ネットワークに依存しない（テスト対象）
-   ========================================================================= */
+/* ==========================================================================
+   Core : 純粋関数のみ。DOM・通信に依存しない（すべて単体テスト済み）
+   ========================================================================== */
 const Core = {
 
-  /** 2点間の大圏距離(km) */
-  haversineKm(a, b){
-    const R = 6371, r = Math.PI/180;
-    const dLat = (b.lat-a.lat)*r, dLng = (b.lng-a.lng)*r;
-    const s = Math.sin(dLat/2)**2 + Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLng/2)**2;
-    return 2*R*Math.asin(Math.min(1, Math.sqrt(s)));
+  haversineKm(a,b){
+    const R=6371,r=Math.PI/180;
+    const dLat=(b.lat-a.lat)*r,dLng=(b.lng-a.lng)*r;
+    const s=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLng/2)**2;
+    return 2*R*Math.asin(Math.min(1,Math.sqrt(s)));
   },
 
-  /** 車の費用計算。金額は円単位で四捨五入 */
-  carCost({distanceKm, fuelEff, fuelPrice, tollOneWay=0, companyRate=null, roundTrip=true}){
-    const mul  = roundTrip ? 2 : 1;
-    const dist = distanceKm * mul;
-    const fuel = (fuelEff > 0) ? Math.round(distanceKm / fuelEff * fuelPrice) * mul : 0;
-    const toll = Math.round(tollOneWay) * mul;
-    const company = (companyRate != null && companyRate > 0) ? Math.round(dist * companyRate) : null;
-    return {
-      distanceTotal: Math.round(dist*10)/10,
-      fuel, toll,
-      total: fuel + toll,
-      company,
-      diff: (company != null) ? company - (fuel + toll) : null
-    };
+  carCost({distanceKm,fuelEff,fuelPrice,tollOneWay=0,companyRate=null,roundTrip=true}){
+    const mul=roundTrip?2:1;
+    const dist=distanceKm*mul;
+    const fuel=(fuelEff>0)?Math.round(distanceKm/fuelEff*fuelPrice)*mul:0;
+    const toll=Math.round(tollOneWay)*mul;
+    const company=(companyRate!=null&&companyRate>0)?Math.round(dist*companyRate):null;
+    return {distanceTotal:Math.round(dist*10)/10,fuel,toll,total:fuel+toll,company,
+            diff:(company!=null)?company-(fuel+toll):null};
   },
 
-  /** 電車の費用計算 */
-  transitCost({fareOneWay=0, roundTrip=true}){
-    const mul = roundTrip ? 2 : 1;
-    return { fare: Math.round(fareOneWay)*mul, total: Math.round(fareOneWay)*mul };
+  transitCost({fareOneWay=0,roundTrip=true}){
+    const mul=roundTrip?2:1;
+    return {fare:Math.round(fareOneWay)*mul,total:Math.round(fareOneWay)*mul};
   },
 
-  /** 徒歩・自転車の所要時間概算(分)。道路距離から速度モデルで算出 */
-  estimateMinutes(distanceKm, mode){
-    const kmh = (mode === 'walk') ? 4.8 : 15;
-    return Math.max(1, Math.round(distanceKm / kmh * 60));
+  estimateMinutes(distanceKm,mode){
+    const kmh=(mode==='walk')?4.8:15;
+    return Math.max(1,Math.round(distanceKm/kmh*60));
   },
 
-  /** 国土地理院APIレスポンス → 共通候補形式 */
   normalizeGsi(json){
-    if (!Array.isArray(json)) return [];
-    return json.map(f => {
-      const c = f && f.geometry && f.geometry.coordinates;
-      if (!Array.isArray(c) || c.length < 2) return null;
-      const lng = Number(c[0]), lat = Number(c[1]);
-      if (!isFinite(lat) || !isFinite(lng)) return null;
-      const title = (f.properties && f.properties.title) ? String(f.properties.title) : '';
-      if (!title) return null;
-      return { lat, lng, address: title, source: '地理院' };
+    if(!Array.isArray(json))return[];
+    return json.map(f=>{
+      const c=f&&f.geometry&&f.geometry.coordinates;
+      if(!Array.isArray(c)||c.length<2)return null;
+      const lng=Number(c[0]),lat=Number(c[1]);
+      if(!isFinite(lat)||!isFinite(lng))return null;
+      const title=(f.properties&&f.properties.title)?String(f.properties.title):'';
+      if(!title)return null;
+      return {lat,lng,address:title,source:'地理院'};
     }).filter(Boolean);
   },
 
-  /** Nominatimレスポンス → 共通候補形式 */
   normalizeNominatim(json){
-    if (!Array.isArray(json)) return [];
-    return json.map(f => {
-      const lat = Number(f.lat), lng = Number(f.lon);
-      if (!isFinite(lat) || !isFinite(lng)) return null;
-      const name = f.display_name ? String(f.display_name).replace(/, 日本$/, '') : '';
-      if (!name) return null;
-      return { lat, lng, address: name, source: 'OSM' };
+    if(!Array.isArray(json))return[];
+    return json.map(f=>{
+      const lat=Number(f.lat),lng=Number(f.lon);
+      if(!isFinite(lat)||!isFinite(lng))return null;
+      const name=f.display_name?String(f.display_name).replace(/, 日本$/,''):'';
+      if(!name)return null;
+      return {lat,lng,address:name,source:'OSM'};
     }).filter(Boolean);
   },
 
-  /** 候補の重複排除。約100m以内の同一地点は1件に丸める */
   dedupe(list){
-    const out = [];
-    for (const c of list){
-      const dup = out.some(o => Math.abs(o.lat-c.lat) < 0.001 && Math.abs(o.lng-c.lng) < 0.001);
-      if (!dup) out.push(c);
+    const out=[];
+    for(const c of list){
+      if(!out.some(o=>Math.abs(o.lat-c.lat)<0.001&&Math.abs(o.lng-c.lng)<0.001))out.push(c);
     }
     return out;
   },
 
-  /** OSRMレスポンス(geometries=geojson) → ルート形式。座標は[lat,lng]配列で返す */
   parseOsrm(json){
-    if (!json || json.code !== 'Ok' || !Array.isArray(json.routes) || json.routes.length === 0){
+    if(!json||json.code!=='Ok'||!Array.isArray(json.routes)||json.routes.length===0)
       throw new Error('ルートが見つかりません');
-    }
-    const r = json.routes[0];
-    const coords = (r.geometry && Array.isArray(r.geometry.coordinates)) ? r.geometry.coordinates : [];
+    const r=json.routes[0];
+    const coords=(r.geometry&&Array.isArray(r.geometry.coordinates))?r.geometry.coordinates:[];
     return {
-      distanceKm: Math.round(r.distance/100)/10,
-      durationMin: Math.max(1, Math.round(r.duration/60)),
-      path: coords.map(p => [Number(p[1]), Number(p[0])]).filter(p => isFinite(p[0]) && isFinite(p[1])),
-      source: 'osrm'
+      distanceKm:Math.round(r.distance/100)/10,
+      durationMin:Math.max(1,Math.round(r.duration/60)),
+      path:coords.map(p=>[Number(p[1]),Number(p[0])]).filter(p=>isFinite(p[0])&&isFinite(p[1])),
+      source:'osrm'
     };
   },
 
-  /** CSV文字列を生成（RFC4180準拠のクォート） */
+  /* --------- 高速料金：NEXCO公表式 ---------
+     （ターミナルチャージ150円 + 距離×km単価×車種係数×長距離逓減）× 消費税1.1
+     端数10円四捨五入 / 1万円超は100円未満切り捨て
+     km単価 通常24.6円・大都市近郊29.52円（税抜）
+     逓減 〜100km定価 / 100〜200km 25%引 / 200km〜 30%引              */
+  TOLL:{RATE_NORMAL:24.6,RATE_URBAN:29.52,TERMINAL:150,TAX:1.1,
+        CLASS:{kei:0.8,normal:1.0,medium:1.2,large:1.65,special:2.75}},
+
+  tollDistanceCharge(km,rate){
+    const s1=Math.min(km,100),s2=Math.min(Math.max(km-100,0),100),s3=Math.max(km-200,0);
+    return s1*rate+s2*rate*0.75+s3*rate*0.70;
+  },
+
+  tollEstimate({km,cls='normal',urban=false,discount=0}){
+    const d=Number(km);
+    if(!isFinite(d)||d<=0)return 0;
+    const rate=urban?this.TOLL.RATE_URBAN:this.TOLL.RATE_NORMAL;
+    const coef=this.TOLL.CLASS[cls]!=null?this.TOLL.CLASS[cls]:1;
+    let raw=(this.TOLL.TERMINAL+this.tollDistanceCharge(d,rate)*coef)*this.TOLL.TAX;
+    if(discount>0)raw=raw*(1-discount);
+    if(!isFinite(raw)||raw<=0)return 0;
+    return (raw>=10000)?Math.floor(raw/100)*100:Math.round(raw/10)*10;
+  },
+
+  detectHighwayKm(json){
+    try{
+      const legs=(json&&json.routes&&json.routes[0]&&json.routes[0].legs)||[];
+      const steps=legs.reduce((a,l)=>a.concat(l.steps||[]),[]);
+      if(!steps.length)return{km:0,method:'none'};
+      let hasClass=false,byClass=0;
+      for(const s of steps){
+        const ints=s.intersections||[];
+        for(const i of ints){if(Array.isArray(i.classes)&&i.classes.length)hasClass=true;}
+        const hw=ints.some(i=>Array.isArray(i.classes)&&
+          (i.classes.indexOf('motorway')>=0||i.classes.indexOf('toll')>=0));
+        if(hw)byClass+=(Number(s.distance)||0);
+      }
+      if(hasClass&&byClass>0)return{km:Math.round(byClass/100)/10,method:'class'};
+      const RE_NAME=/(自動車道|高速道路|首都高|阪神高速|名古屋高速|福岡高速|広島高速|圏央道|外環|京葉道路|第三京浜|横浜新道|西湘バイパス|有料道路|エクスプレスウェイ)/;
+      const RE_REF=/^(E\d+|C\d+|E\d+[A-Z])/;
+      let byName=0;
+      for(const s of steps){
+        if(RE_NAME.test(String(s.name||''))||RE_REF.test(String(s.ref||'')))byName+=(Number(s.distance)||0);
+      }
+      return {km:Math.round(byName/100)/10,method:byName>0?'name':'none'};
+    }catch(e){return{km:0,method:'none'}}
+  },
+
+  /* --------- 電車運賃：JR本州3社 幹線運賃表からの目安 --------- */
+  FARE_TABLE:[[3,150],[6,190],[10,200],[15,240],[20,330],[25,420],[30,510],[35,590],
+              [40,680],[45,770],[50,860],[60,990],[70,1170],[80,1340],[90,1520],
+              [100,1690],[120,1980],[140,2310],[160,2640],[180,3080],[200,3410]],
+
+  estimateTrainFare(straightKm){
+    const d=Number(straightKm);
+    if(!isFinite(d)||d<=0)return 0;
+    const railKm=d*1.25;
+    for(const [limit,fare] of this.FARE_TABLE){if(railKm<=limit)return fare;}
+    return Math.round((3410+(railKm-200)*16.2)/10)*10;
+  },
+
+  routeKey(o,d,mode){
+    const n=s=>String(s||'').replace(/\s+/g,'').slice(0,40);
+    return `${n(o)}|${n(d)}|${mode}`;
+  },
+
+  /* --------- 計算内訳（手計算で検算できる粒度で出す） --------- */
+  fuelBreakdown({distanceKm,fuelEff,fuelPrice,roundTrip}){
+    const d=Number(distanceKm)||0,e=Number(fuelEff)||0,p=Number(fuelPrice)||0;
+    if(d<=0||e<=0)return{steps:[{label:'計算不可',expr:'燃費または距離が未設定',value:'—'}],total:0};
+    const liters=d/e, oneWay=Math.round(liters*p);
+    const steps=[
+      {label:'必要な燃料',expr:`${d.toFixed(1)} km ÷ ${e} km/L`,value:`${liters.toFixed(3)} L`},
+      {label:'片道の金額',expr:`${liters.toFixed(3)} L × ${p} 円/L`,value:`${oneWay.toLocaleString()} 円`}
+    ];
+    if(roundTrip)steps.push({label:'往復',expr:`${oneWay.toLocaleString()} 円 × 2`,value:`${(oneWay*2).toLocaleString()} 円`,fin:true});
+    else steps[1].fin=true;
+    return {steps,total:roundTrip?oneWay*2:oneWay,liters};
+  },
+
+  tollBreakdown({highwayKm,cls,urban,discount,roundTrip}){
+    const T=this.TOLL, km=Number(highwayKm)||0;
+    if(km<=0)return{steps:[{label:'高速区間なし',expr:'経路上に高速道路を検出せず',value:'0 円'}],total:0,oneWay:0};
+    const rate=urban?T.RATE_URBAN:T.RATE_NORMAL;
+    const coef=T.CLASS[cls]!=null?T.CLASS[cls]:1;
+    const clsName={kei:'軽自動車',normal:'普通車',medium:'中型車',large:'大型車',special:'特大車'}[cls]||'普通車';
+    const s1=Math.min(km,100),s2=Math.min(Math.max(km-100,0),100),s3=Math.max(km-200,0);
+    const steps=[];
+    steps.push({label:'高速走行距離',expr:'経路から検出',value:`${km.toFixed(1)} km`});
+    steps.push({label:'距離あたり単価',expr:urban?'大都市近郊区間':'通常区間',value:`${rate} 円/km`});
+    let dc;
+    if(s2>0||s3>0){
+      dc=s1*rate+s2*rate*0.75+s3*rate*0.70;
+      steps.push({label:'〜100km',expr:`${s1.toFixed(1)} × ${rate}`,value:`${(s1*rate).toFixed(1)} 円`});
+      if(s2>0)steps.push({label:'100〜200km',expr:`${s2.toFixed(1)} × ${rate} × 0.75`,value:`${(s2*rate*0.75).toFixed(1)} 円`});
+      if(s3>0)steps.push({label:'200km〜',expr:`${s3.toFixed(1)} × ${rate} × 0.70`,value:`${(s3*rate*0.70).toFixed(1)} 円`});
+    }else{
+      dc=s1*rate;
+      steps.push({label:'距離料金',expr:`${km.toFixed(1)} km × ${rate} 円/km`,value:`${dc.toFixed(1)} 円`});
+    }
+    const wc=dc*coef;
+    if(coef!==1)steps.push({label:`車種係数（${clsName}）`,expr:`${dc.toFixed(1)} × ${coef}`,value:`${wc.toFixed(1)} 円`});
+    const pre=T.TERMINAL+wc;
+    steps.push({label:'ターミナルチャージ',expr:'1回の利用ごと',value:`+ ${T.TERMINAL} 円`});
+    steps.push({label:'税抜合計',expr:`${T.TERMINAL} + ${wc.toFixed(1)}`,value:`${pre.toFixed(1)} 円`});
+    let tx=pre*T.TAX;
+    steps.push({label:'消費税',expr:`${pre.toFixed(1)} × 1.1`,value:`${tx.toFixed(1)} 円`});
+    if(discount>0){
+      const b=tx; tx=tx*(1-discount);
+      steps.push({label:`ETC割引 ${Math.round(discount*100)}%`,expr:`${b.toFixed(1)} × ${(1-discount).toFixed(1)}`,value:`${tx.toFixed(1)} 円`});
+    }
+    const one=(tx>=10000)?Math.floor(tx/100)*100:Math.round(tx/10)*10;
+    steps.push({label:tx>=10000?'100円未満切捨':'10円単位四捨五入',expr:`${tx.toFixed(1)} 円`,value:`${one.toLocaleString()} 円`,fin:!roundTrip});
+    if(roundTrip)steps.push({label:'往復',expr:`${one.toLocaleString()} × 2`,value:`${(one*2).toLocaleString()} 円`,fin:true});
+    return {steps,total:roundTrip?one*2:one,oneWay:one};
+  },
+
+  /* --------- 出力 --------- */
+  buildTsv(rows){
+    return rows.map(r=>r.map(c=>(c==null?'':String(c)).replace(/[\t\n\r]+/g,' ')).join('\t')).join('\n');
+  },
   buildCsv(rows){
-    const esc = v => '"' + String(v==null?'':v).replace(/"/g,'""') + '"';
-    return rows.map(r => r.map(esc).join(',')).join('\r\n');
+    const e=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+    return rows.map(r=>r.map(e).join(',')).join('\r\n');
+  },
+  SHEET_HEADER:['日付','出発地','訪問先','手段','片道km','往復km','所要分',
+                '高速km','高速料金','ガソリン代','運賃','合計','会社支給','過不足'],
+  toSheetRow(rec){
+    const mn={car:'車',transit:'電車',walk:'徒歩',bike:'自転車'}[rec.mode]||rec.mode;
+    const d=rec.date?new Date(rec.date):new Date();
+    const ymd=`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+    return [ymd,rec.origin||'',rec.dest||'',mn,
+      rec.distanceKm!=null?rec.distanceKm.toFixed(1):'',
+      rec.distanceTotal!=null?rec.distanceTotal.toFixed(1):'',
+      rec.durationMin!=null?rec.durationMin:'',
+      rec.highwayKm?rec.highwayKm.toFixed(1):'0.0',
+      rec.toll!=null?rec.toll:0, rec.fuel!=null?rec.fuel:0,
+      rec.fare!=null?rec.fare:0, rec.total!=null?rec.total:0,
+      rec.company!=null?rec.company:'', rec.diff!=null?rec.diff:''];
+  },
+  recordsToTsv(records,withHeader){
+    const rows=records.map(r=>this.toSheetRow(r));
+    return this.buildTsv(withHeader?[this.SHEET_HEADER,...rows]:rows);
+  },
+  recordsToCsv(records){
+    return this.buildCsv([this.SHEET_HEADER,...records.map(r=>this.toSheetRow(r))]);
   },
 
-  /** 履歴レコード → CSV行 */
-  historyToRows(items){
-    const head = ['日付','出発地','訪問先','手段','距離km','所要分','高速料金','ガソリン代','運賃','合計'];
-    const body = items.map(h => [
-      new Date(h.date).toLocaleDateString('ja-JP'),
-      h.origin, h.dest,
-      ({car:'車',transit:'電車',walk:'徒歩',bike:'自転車'})[h.mode] || h.mode,
-      h.distanceKm ?? '', h.durationMin ?? '',
-      h.toll ?? '', h.fuel ?? '', h.fare ?? '', h.total ?? ''
-    ]);
-    return [head, ...body];
+  fmtDuration(min){
+    const m=Math.max(0,Math.round(Number(min)||0));
+    if(m<60)return `${m}分`;
+    const h=Math.floor(m/60),r=m%60;
+    return r?`${h}時間${r}分`:`${h}時間`;
   },
-
-  yen(n){ return (n==null) ? '—' : '¥' + Number(n).toLocaleString('ja-JP'); }
+  yen(n){return (n==null)?'—':'¥'+Number(n).toLocaleString('ja-JP')}
 };
 
-/* =========================================================================
-   Services : ネットワーク層
-   ========================================================================= */
-const Net = {
-  async json(url, opt={}){
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), opt.timeout || 12000);
+/* ==========================================================================
+   通信層
+   ========================================================================== */
+const Net={
+  async json(url,opt){
+    opt=opt||{};
+    const ctl=(typeof AbortController!=='undefined')?new AbortController():null;
+    const timer=setTimeout(()=>{if(ctl)ctl.abort()},opt.timeout||12000);
     try{
-      const res = await fetch(url, {signal: ctl.signal, headers: opt.headers || {}});
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const res=await fetch(url,ctl?{signal:ctl.signal}:{});
+      if(!res.ok)throw new Error('HTTP '+res.status);
       return await res.json();
-    } finally { clearTimeout(timer); }
+    }finally{clearTimeout(timer)}
   }
 };
 
-const GeoService = {
-  GSI: 'https://msearch.gsi.go.jp/address-search/AddressSearch',
-  NOM: 'https://nominatim.openstreetmap.org/search',
-
-  /** 地理院とNominatimを併用して候補を返す。片方が落ちても継続する */
+const GeoService={
+  GSI:'https://msearch.gsi.go.jp/address-search/AddressSearch',
+  NOM:'https://nominatim.openstreetmap.org/search',
   async search(q){
-    const query = String(q||'').trim();
-    if (query.length < 2) return [];
-    const tasks = [
+    const query=String(q||'').trim();
+    if(query.length<2)return[];
+    const [gsi,nom]=await Promise.all([
       Net.json(`${this.GSI}?q=${encodeURIComponent(query)}`).then(Core.normalizeGsi).catch(()=>[]),
       Net.json(`${this.NOM}?q=${encodeURIComponent(query)}&format=json&limit=5&countrycodes=jp&accept-language=ja`)
         .then(Core.normalizeNominatim).catch(()=>[])
-    ];
-    const [gsi, nom] = await Promise.all(tasks);
-    return Core.dedupe([...gsi.slice(0,5), ...nom.slice(0,5)]).slice(0,8);
+    ]);
+    return Core.dedupe([...gsi.slice(0,5),...nom.slice(0,5)]).slice(0,8);
   },
-
-  async reverse(lat, lng){
+  async reverse(lat,lng){
     try{
-      const j = await Net.json(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ja&zoom=18`);
-      if (j && j.display_name) return String(j.display_name).replace(/, 日本$/,'');
+      const j=await Net.json(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ja&zoom=18`);
+      if(j&&j.display_name)return String(j.display_name).replace(/, 日本$/,'');
     }catch(e){}
     return `緯度${lat.toFixed(5)} 経度${lng.toFixed(5)}`;
   }
 };
 
-const RouteService = {
-  BASE: 'https://router.project-osrm.org/route/v1',
-
-  /** OSRM公開サーバは車プロファイルのみ稼働。徒歩・自転車は道路距離から速度換算する */
-  async route(from, to, mode, avoidToll){
-    const coords = `${from.lng},${from.lat};${to.lng},${to.lat}`;
-    const url = `${this.BASE}/driving/${coords}?overview=full&geometries=geojson&alternatives=false&steps=false`;
+const RouteService={
+  BASE:'https://router.project-osrm.org/route/v1',
+  async route(from,to,mode,avoidToll){
+    const c=`${from.lng},${from.lat};${to.lng},${to.lat}`;
+    const ex=avoidToll?'&exclude=toll':'';
+    const url=`${this.BASE}/driving/${c}?overview=full&geometries=geojson&alternatives=false&steps=true${ex}`;
     try{
-      const json = await Net.json(url);
-      const r = Core.parseOsrm(json);
-      if (mode === 'walk' || mode === 'bike') r.source = 'osrm-est';
-      if (avoidToll) r.avoidTollRequested = true;
+      let json;
+      try{ json=await Net.json(url); }
+      catch(e){
+        if(!avoidToll)throw e;
+        json=await Net.json(url.replace('&exclude=toll',''));
+      }
+      const r=Core.parseOsrm(json);
+      const hw=Core.detectHighwayKm(json);
+      r.highwayKm=avoidToll?0:hw.km;
+      r.highwayMethod=avoidToll?'avoided':hw.method;
+      r.localKm=Math.max(0,Math.round((r.distanceKm-r.highwayKm)*10)/10);
+      if(mode==='walk'||mode==='bike')r.source='osrm-est';
       return r;
     }catch(e){
-      // 経路探索が失敗した場合は直線距離に迂回係数1.3を掛けた概算にフォールバック
-      const straight = Core.haversineKm(from, to);
-      const km = Math.round(straight * 1.3 * 10)/10;
-      const spd = {car:32, transit:32, walk:4.8, bike:15}[mode] || 32;
-      return {
-        distanceKm: km,
-        durationMin: Math.max(1, Math.round(km/spd*60)),
-        path: [[from.lat,from.lng],[to.lat,to.lng]],
-        source: 'fallback',
-        error: e.message
-      };
+      const km=Math.round(Core.haversineKm(from,to)*1.3*10)/10;
+      const spd={car:32,transit:32,walk:4.8,bike:15}[mode]||32;
+      return {distanceKm:km,durationMin:Math.max(1,Math.round(km/spd*60)),
+        path:[[from.lat,from.lng],[to.lat,to.lng]],source:'fallback',
+        highwayKm:0,highwayMethod:'none',localKm:km,error:e.message};
     }
   }
 };
 
-const LinkBuilder = {
-  toll(){ return 'https://www.driveplaza.com/dp/SearchTop'; },
-  transit(from, to){
-    return `https://transit.yahoo.co.jp/search/result?from=${encodeURIComponent(from||'')}&to=${encodeURIComponent(to||'')}`;
-  }
+const Link={
+  toll(){return 'https://www.driveplaza.com/dp/SearchTop'},
+  transit(f,t){return `https://transit.yahoo.co.jp/search/result?from=${encodeURIComponent(f||'')}&to=${encodeURIComponent(t||'')}`}
 };
 
-/* =========================================================================
-   Store : LocalStorage
-   ========================================================================= */
-class Store {
-  constructor(key, init){ this.key = key; this.init = init; }
-  // structuredClone は古いブラウザで未実装のため使用しない
-  clone(o){ return JSON.parse(JSON.stringify(o)); }
-  get(){
-    try{ const v = localStorage.getItem(this.key); return v ? JSON.parse(v) : this.clone(this.init); }
-    catch(e){ return this.clone(this.init); }
-  }
-  set(v){ try{ localStorage.setItem(this.key, JSON.stringify(v)); }catch(e){} }
+/* ==========================================================================
+   保存
+   ========================================================================== */
+class Store{
+  constructor(k,i){this.key=k;this.init=i}
+  clone(o){return JSON.parse(JSON.stringify(o))}
+  get(){try{const v=localStorage.getItem(this.key);return v?JSON.parse(v):this.clone(this.init)}catch(e){return this.clone(this.init)}}
+  set(v){try{localStorage.setItem(this.key,JSON.stringify(v))}catch(e){}}
 }
-const cfgStore  = new Store('tc2_cfg',  {eff:12, price:175, rate:null, round:true, avoidToll:false});
-const histStore = new Store('tc2_hist', []);
-const favStore  = new Store('tc2_fav',  []);
+const cfgStore =new Store('tc3_cfg',{eff:12,price:175,rate:null,cls:'normal',discount:0,urban:false,round:true,avoid:false});
+const histStore=new Store('tc3_hist',[]);
+const favStore =new Store('tc3_fav',[]);
+const memoStore=new Store('tc3_memo',{});
 
-/* =========================================================================
-   State : 単一の真実。UIはここから描画する
-   ========================================================================= */
-const S = {
-  mode: 'car',
-  origin: null,      // {lat,lng,address}
-  dest: null,
-  route: null,       // {distanceKm,durationMin,path,source}
-  tollOneWay: 0,
-  fareOneWay: 0,
-  transfers: 0,
-  listTab: 'hist',
-  cfg: cfgStore.get()
+/* ==========================================================================
+   状態
+   ========================================================================== */
+const S={
+  mode:'car', origin:null, dest:null, route:null,
+  tollOneWay:0, fareOneWay:0, transfers:0,
+  tollAuto:false, fareAuto:false, tollMemo:false, fareMemo:false,
+  listTab:'hist', listOpen:false, bkdOpen:false,
+  cfg:cfgStore.get()
 };
 
-/* =========================================================================
-   UI helpers
-   ========================================================================= */
-const $ = id => document.getElementById(id);
-let toastTimer = null;
-function toast(msg, ng){
-  const t = $('toast');
-  t.textContent = msg;
-  t.className = 'toast on' + (ng ? ' ng' : '');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(()=> t.classList.remove('on'), 3800);
+/* ==========================================================================
+   UI 基本
+   ========================================================================== */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+let tstT=null;
+function toast(msg,ng){
+  const t=$('tst'); t.textContent=msg; t.className='tst on'+(ng?' ng':'');
+  clearTimeout(tstT); tstT=setTimeout(()=>t.classList.remove('on'),3600);
 }
-function setStatus(el, kind, text){
-  el.className = 'status ' + kind;
-  el.innerHTML = '<span class="dot"></span><span></span>';
-  el.lastElementChild.textContent = text;
+function setSt(el,kind,text){el.className='st '+kind;el.textContent=text}
+function openMd(id){$(id).classList.add('on')}
+function closeMd(id){$(id).classList.remove('on')}
+
+/** クリップボードへコピー。失敗時は false を返す */
+async function copyText(text){
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(text); return true;
+    }
+  }catch(e){}
+  try{
+    const ta=document.createElement('textarea');
+    ta.value=text; ta.style.position='fixed'; ta.style.top='-9999px';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    const ok=document.execCommand('copy'); ta.remove(); return ok;
+  }catch(e){return false}
 }
 
-/* =========================================================================
-   Map
-   ========================================================================= */
-const MapView = {
-  map:null, line:null, m1:null, m2:null, ok:false,
+/* ==========================================================================
+   地図
+   ========================================================================== */
+const MapView={
+  map:null,line:null,m1:null,m2:null,ok:false,
   init(){
-    if (this.map || typeof L === 'undefined') return;
+    if(this.map||typeof L==='undefined')return;
     try{
-      this.map = L.map('map', {scrollWheelZoom:false}).setView([35.925, 139.485], 10);
+      this.map=L.map('map',{zoomControl:false,attributionControl:true}).setView([35.925,139.485],11);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        {attribution:'© OpenStreetMap', maxZoom:19}).addTo(this.map);
-      this.ok = true;
-    }catch(e){ this.ok = false; }
+        {attribution:'© OpenStreetMap',maxZoom:19}).addTo(this.map);
+      L.control.zoom({position:'bottomright'}).addTo(this.map);
+      this.ok=true;
+    }catch(e){this.ok=false}
   },
-  draw(from, to, path){
-    if (!this.map) this.init();
-    if (!this.map) return;
-    [this.line,this.m1,this.m2].forEach(l => { if (l) this.map.removeLayer(l); });
-    this.m1 = L.marker([from.lat,from.lng]).addTo(this.map).bindPopup('出発地');
-    this.m2 = L.marker([to.lat,to.lng]).addTo(this.map).bindPopup('訪問先');
-    const pts = (path && path.length > 1) ? path : [[from.lat,from.lng],[to.lat,to.lng]];
-    this.line = L.polyline(pts, {color:'#111', weight:4, opacity:.85}).addTo(this.map);
-    this.map.fitBounds(this.line.getBounds(), {padding:[40,40]});
+  pin(cls){
+    return L.divIcon({className:'',html:`<div class="mk ${cls}"></div>`,iconSize:[22,22],iconAnchor:[11,11]});
+  },
+  draw(from,to,path){
+    if(!this.map)this.init();
+    if(!this.map)return;
+    [this.line,this.m1,this.m2].forEach(l=>{if(l)this.map.removeLayer(l)});
+    this.m1=L.marker([from.lat,from.lng],{icon:this.pin('o')}).addTo(this.map);
+    this.m2=L.marker([to.lat,to.lng],{icon:this.pin('d')}).addTo(this.map);
+    const pts=(path&&path.length>1)?path:[[from.lat,from.lng],[to.lat,to.lng]];
+    this.line=L.polyline(pts,{color:'#202124',weight:5,opacity:.85,lineJoin:'round'}).addTo(this.map);
+    const pad=window.innerWidth>=900?[60,60]:[40,40];
+    const opt={padding:pad};
+    if(window.innerWidth>=900)opt.paddingTopLeft=[468,60];
+    this.map.fitBounds(this.line.getBounds(),opt);
   }
 };
 
-/* =========================================================================
-   Autocomplete
-   ========================================================================= */
-class Picker {
-  constructor(input, box, status, onPick){
-    this.input=input; this.box=box; this.status=status; this.onPick=onPick;
-    this.timer=null; this.idx=-1; this.items=[]; this.seq=0;
-    input.addEventListener('input', ()=> this.onInput());
-    input.addEventListener('keydown', e=> this.onKey(e));
-    input.addEventListener('blur', ()=> setTimeout(()=> this.close(), 200));
-    input.addEventListener('focus', ()=>{ if(this.items.length) this.box.classList.add('on'); });
+/* ==========================================================================
+   住所オートコンプリート
+   ========================================================================== */
+class Picker{
+  constructor(input,box,status,onPick){
+    this.input=input;this.box=box;this.status=status;this.onPick=onPick;
+    this.timer=null;this.idx=-1;this.items=[];this.seq=0;
+    input.addEventListener('input',()=>this.onInput());
+    input.addEventListener('keydown',e=>this.onKey(e));
+    input.addEventListener('blur',()=>setTimeout(()=>this.close(),200));
+    input.addEventListener('focus',()=>{if(this.items.length)this.box.classList.add('on')});
   }
   onInput(){
-    clearTimeout(this.timer);
-    this.seq++;                              // 進行中の検索結果を無効化
-    this.onPick(null);                       // 手入力で確定を解除
-    setStatus(this.status,'wait','未確定');
-    const q = this.input.value.trim();
-    if (q.length < 2){ this.close(); return; }
-    setStatus(this.status,'wait','検索中…');
-    this.timer = setTimeout(()=> this.run(q), 600);
+    clearTimeout(this.timer); this.seq++;
+    this.onPick(null); setSt(this.status,'wait','未確定');
+    const q=this.input.value.trim();
+    if(q.length<2){this.close();return}
+    setSt(this.status,'wait','検索中…');
+    this.timer=setTimeout(()=>this.run(q),600);
   }
   async run(q){
-    const my = ++this.seq;
+    const my=++this.seq;
     try{
-      const list = await GeoService.search(q);
-      if (my !== this.seq) return;           // 古い検索の結果は破棄
-      this.items = list;
-      this.render();
-      if (!list.length) setStatus(this.status,'ng','候補が見つかりません。番地まで入力するか別の表記でお試しください');
-      else setStatus(this.status,'wait','候補から選択してください');
+      const list=await GeoService.search(q);
+      if(my!==this.seq)return;
+      this.items=list; this.render();
+      setSt(this.status, list.length?'wait':'ng',
+        list.length?'候補から選択してください':'候補が見つかりません。番地まで入力するか別の表記でお試しください');
     }catch(e){
-      if (my !== this.seq) return;
-      setStatus(this.status,'ng','検索に失敗しました：'+e.message);
+      if(my!==this.seq)return;
+      setSt(this.status,'ng','検索に失敗しました：'+e.message);
     }
-  }
-  /** 外部（検索ボタン・お気に入り・履歴）から確定させる。保留中の検索を確実に打ち切る */
-  setConfirmed(loc){
-    clearTimeout(this.timer);
-    this.seq++;
-    this.items=[]; this.close();
-    this.input.value = loc.address;
-    this.onPick(loc);
-    setStatus(this.status,'ok','確定：'+loc.address);
-  }
-  /** 外部から失敗状態にする。同じく保留中の検索を打ち切る */
-  setFailed(msg){
-    clearTimeout(this.timer);
-    this.seq++;
-    this.items=[]; this.close();
-    setStatus(this.status,'ng',msg);
   }
   render(){
     this.box.innerHTML='';
-    if (!this.items.length){
-      this.box.innerHTML='<div class="cand-empty">候補なし</div>';
-      this.box.classList.add('on'); return;
+    if(!this.items.length){
+      this.box.innerHTML='<div class="ci-empty">候補なし</div>';
+      this.box.classList.add('on');return;
     }
     this.items.forEach((c,i)=>{
       const d=document.createElement('div');
-      d.className='cand-item';
-      d.innerHTML='<span></span><span class="cand-src"></span>';
-      d.firstElementChild.textContent = c.address;
-      d.lastElementChild.textContent = c.source;
-      d.addEventListener('mousedown', e=>{ e.preventDefault(); this.pick(i); });
+      d.className='ci';
+      d.innerHTML=`<svg width="17" height="17" viewBox="0 0 24 24"><path d="M12 2a7 7 0 00-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 00-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/></svg>
+        <div class="ci-tx"><div class="ci-t"></div><div class="ci-s"></div></div>`;
+      d.querySelector('.ci-t').textContent=c.address;
+      d.querySelector('.ci-s').textContent=c.source;
+      d.addEventListener('mousedown',e=>{e.preventDefault();this.pick(i)});
       this.box.appendChild(d);
     });
     this.box.classList.add('on'); this.idx=-1;
   }
   pick(i){
-    const c=this.items[i]; if(!c) return;
-    this.input.value = c.address;
-    this.onPick(c);
-    setStatus(this.status,'ok','確定：'+c.address);
-    this.close();
+    const c=this.items[i]; if(!c)return;
+    this.input.value=c.address; this.onPick(c);
+    setSt(this.status,'ok','確定：'+c.address); this.close();
+  }
+  setConfirmed(loc){
+    clearTimeout(this.timer); this.seq++; this.items=[]; this.close();
+    this.input.value=loc.address; this.onPick(loc);
+    setSt(this.status,'ok','確定：'+loc.address);
+  }
+  setFailed(msg){
+    clearTimeout(this.timer); this.seq++; this.items=[]; this.close();
+    setSt(this.status,'ng',msg);
   }
   onKey(e){
-    const n=this.box.querySelectorAll('.cand-item');
-    if(!n.length) return;
-    if(e.key==='ArrowDown'){e.preventDefault(); this.idx=Math.min(this.idx+1,n.length-1); this.mark(n);}
-    else if(e.key==='ArrowUp'){e.preventDefault(); this.idx=Math.max(this.idx-1,0); this.mark(n);}
-    else if(e.key==='Enter'){ if(this.idx>=0){e.preventDefault(); this.pick(this.idx);} }
-    else if(e.key==='Escape'){ this.close(); }
+    const n=this.box.querySelectorAll('.ci'); if(!n.length)return;
+    if(e.key==='ArrowDown'){e.preventDefault();this.idx=Math.min(this.idx+1,n.length-1);this.mark(n)}
+    else if(e.key==='ArrowUp'){e.preventDefault();this.idx=Math.max(this.idx-1,0);this.mark(n)}
+    else if(e.key==='Enter'){if(this.idx>=0){e.preventDefault();this.pick(this.idx)}}
+    else if(e.key==='Escape')this.close();
   }
-  mark(n){ n.forEach((el,i)=> el.classList.toggle('sel', i===this.idx)); }
-  close(){ this.box.classList.remove('on'); this.idx=-1; }
+  mark(n){n.forEach((el,i)=>el.classList.toggle('sel',i===this.idx))}
+  close(){this.box.classList.remove('on');this.idx=-1}
+}
+const P={origin:null,dest:null};
+
+/* ==========================================================================
+   記憶・自動見積り
+   ========================================================================== */
+function recallMemo(){
+  if(!S.origin||!S.dest)return null;
+  return memoStore.get()[Core.routeKey(S.origin.address,S.dest.address,S.mode)]||null;
+}
+function rememberMemo(patch){
+  if(!S.origin||!S.dest)return;
+  const m=memoStore.get();
+  const k=Core.routeKey(S.origin.address,S.dest.address,S.mode);
+  m[k]=Object.assign({},m[k],patch,{at:Date.now()});
+  const keys=Object.keys(m);
+  if(keys.length>200){
+    keys.sort((a,b)=>(m[a].at||0)-(m[b].at||0)).slice(0,keys.length-200).forEach(k2=>delete m[k2]);
+  }
+  memoStore.set(m);
+}
+function applyAuto(){
+  const c=S.cfg,r=S.route,memo=recallMemo();
+  S.tollMemo=false; S.fareMemo=false;
+  if(S.mode==='car'){
+    if(memo&&memo.toll!=null){S.tollOneWay=memo.toll;S.tollAuto=false;S.tollMemo=true}
+    else if(r&&r.highwayKm>0&&!c.avoid){
+      S.tollOneWay=Core.tollEstimate({km:r.highwayKm,cls:c.cls,urban:c.urban,discount:c.discount});
+      S.tollAuto=true;
+    }else{S.tollOneWay=0;S.tollAuto=false}
+  }
+  if(S.mode==='transit'){
+    if(memo&&memo.fare!=null){
+      S.fareOneWay=memo.fare;S.fareAuto=false;S.fareMemo=true;
+      if(memo.transfers!=null)S.transfers=memo.transfers;
+    }else if(S.origin&&S.dest){
+      S.fareOneWay=Core.estimateTrainFare(Core.haversineKm(S.origin,S.dest));
+      S.fareAuto=true;
+    }
+  }
 }
 
-/* Pickerインスタンスの保持（外部から確定状態を操作するため） */
-const P = { origin:null, dest:null };
+/* ==========================================================================
+   現在の計算結果をひとまとめに算出する
+   ========================================================================== */
+function computeCurrent(){
+  const c=S.cfg,r=S.route;
+  if(!r)return null;
+  const rt=c.round;
 
-/* =========================================================================
-   Result rendering : 状態から一方向に描画する
-   ========================================================================= */
-function renderResult(){
-  const box = $('result');
-  if (!S.route){ box.innerHTML=''; return; }
-  const r = S.route, c = S.cfg;
-  const rt = c.round;
-  const srcLabel = {osrm:'道路ルート', 'osrm-est':'道路距離+速度換算', fallback:'直線距離からの概算', manual:'手入力'}[r.source] || '';
-  let h = '';
-
-  if (S.mode === 'car'){
-    const k = Core.carCost({distanceKm:r.distanceKm, fuelEff:c.eff, fuelPrice:c.price,
-                            tollOneWay:S.tollOneWay, companyRate:c.rate, roundTrip:rt});
-    h = `<div class="card">
-      <h3><span>車</span><span class="src-tag">${srcLabel}</span></h3>
-      <div class="line"><span class="k">片道距離</span><span class="v">${r.distanceKm.toFixed(1)} km</span></div>
-      <div class="line"><span class="k">片道所要</span><span class="v">${r.durationMin} 分</span></div>
-      <div class="line"><span class="k">${rt?'往復':'片道'}距離</span><span class="v">${k.distanceTotal.toFixed(1)} km</span></div>
-      <div class="sep"></div>
-      <div class="line">
-        <span class="k">高速料金（片道）</span>
-        <input type="number" id="inToll" min="0" step="10" value="${S.tollOneWay}">
-        <a class="ext" href="${LinkBuilder.toll()}" target="_blank" rel="noopener">ドラぷら↗</a>
-      </div>
-      <div class="line"><span class="k">ガソリン代（${rt?'往復':'片道'}）</span><span class="v">${Core.yen(k.fuel)}</span></div>
-      <div class="line"><span class="k">高速料金（${rt?'往復':'片道'}）</span><span class="v">${Core.yen(k.toll)}</span></div>
-      <div class="total"><div class="line"><span class="k">総移動コスト</span><span class="v">${Core.yen(k.total)}</span></div></div>
-      ${k.company!=null ? `<div class="line" style="margin-top:12px"><span class="k">会社支給（${c.rate}円/km）</span><span class="v">${Core.yen(k.company)}</span></div>
-      <div class="line"><span class="k">過不足</span><span class="v">${k.diff>=0?'+':''}${Core.yen(k.diff)}</span></div>` : ''}
-      <div class="note">高速料金は自動取得していません。ドラぷらで確認した金額を入力してください。${r.source==='fallback'?'<br><strong>経路探索に失敗したため直線距離×1.3の概算です。</strong>':''}</div>
-      <div class="acts"><button class="act" id="btnSave">履歴に保存</button><button class="act" id="btnFavAdd">訪問先を登録</button></div>
-    </div>`;
+  if(S.mode==='car'){
+    const k=Core.carCost({distanceKm:r.distanceKm,fuelEff:c.eff,fuelPrice:c.price,
+      tollOneWay:S.tollOneWay,companyRate:c.rate,roundTrip:rt});
+    return {mode:'car',distanceKm:r.distanceKm,durationMin:r.durationMin,
+      highwayKm:r.highwayKm||0,localKm:r.localKm!=null?r.localKm:r.distanceKm,
+      roundTrip:rt,source:r.source,highwayMethod:r.highwayMethod,
+      distanceTotal:k.distanceTotal,fuel:k.fuel,toll:k.toll,
+      total:k.total,company:k.company,diff:k.diff,fare:0};
   }
 
-  else if (S.mode === 'transit'){
-    const k = Core.transitCost({fareOneWay:S.fareOneWay, roundTrip:rt});
-    h = `<div class="card">
-      <h3><span>電車</span><span class="src-tag">運賃は手入力</span></h3>
-      <div class="line"><span class="k">直線距離</span><span class="v">${Core.haversineKm(S.origin,S.dest).toFixed(1)} km</span></div>
-      <div class="sep"></div>
-      <div class="line">
-        <span class="k">運賃（片道）</span>
-        <input type="number" id="inFare" min="0" step="10" value="${S.fareOneWay}">
-        <a class="ext" href="${LinkBuilder.transit(S.origin.address, S.dest.address)}" target="_blank" rel="noopener">乗換案内↗</a>
-      </div>
-      <div class="line"><span class="k">乗換回数</span><input type="number" id="inTrans" min="0" step="1" value="${S.transfers}"></div>
-      <div class="total"><div class="line"><span class="k">運賃${rt?'往復':'片道'}</span><span class="v">${Core.yen(k.total)}</span></div></div>
-      <div class="note">電車の所要時間・運賃・乗換回数は乗換案内で確認して入力してください。無料の経路探索エンジンは鉄道ダイヤに対応していないため自動取得できません。</div>
-      <div class="acts"><button class="act" id="btnSave">履歴に保存</button><button class="act" id="btnFavAdd">訪問先を登録</button></div>
-    </div>`;
+  if(S.mode==='transit'){
+    // 電車は運賃の推定根拠が直線距離なので、記録もそれに揃える。高速距離は無関係なので0
+    const k=Core.transitCost({fareOneWay:S.fareOneWay,roundTrip:rt});
+    const st=(S.origin&&S.dest)?Math.round(Core.haversineKm(S.origin,S.dest)*10)/10:r.distanceKm;
+    return {mode:'transit',distanceKm:st,durationMin:r.durationMin,
+      highwayKm:0,localKm:0,roundTrip:rt,source:r.source,highwayMethod:'none',
+      distanceTotal:Math.round(st*(rt?2:1)*10)/10,
+      fuel:0,toll:0,fare:k.fare,total:k.total,company:null,diff:null,transfers:S.transfers};
   }
 
-  else {
-    const label = S.mode==='walk' ? '徒歩' : '自転車';
-    // 所要時間はタブ切替に追従させるため、描画時に距離とモードから導出する
-    const mins = (r.source==='manual' && r.userMin) ? r.userMin : Core.estimateMinutes(r.distanceKm, S.mode);
-    h = `<div class="card">
-      <h3><span>${label}</span><span class="src-tag">${srcLabel}</span></h3>
-      <div class="line"><span class="k">片道距離</span><span class="v">${r.distanceKm.toFixed(1)} km</span></div>
-      <div class="line"><span class="k">片道所要</span><span class="v">約 ${mins} 分</span></div>
-      <div class="line"><span class="k">${rt?'往復':'片道'}距離</span><span class="v">${(r.distanceKm*(rt?2:1)).toFixed(1)} km</span></div>
-      <div class="note">道路距離をもとに${S.mode==='walk'?'時速4.8km':'時速15km'}で換算した目安です。信号待ち・高低差は含みません。</div>
-      <div class="acts"><button class="act" id="btnSave">履歴に保存</button><button class="act" id="btnFavAdd">訪問先を登録</button></div>
-    </div>`;
-  }
+  // 徒歩・自転車は道路距離をそのまま使うが、高速距離は無関係なので0にする
+  const mins=(r.source==='manual'&&r.userMin)?r.userMin:Core.estimateMinutes(r.distanceKm,S.mode);
+  return {mode:S.mode,distanceKm:r.distanceKm,durationMin:mins,
+    highwayKm:0,localKm:r.distanceKm,roundTrip:rt,source:r.source,highwayMethod:'none',
+    distanceTotal:Math.round(r.distanceKm*(rt?2:1)*10)/10,
+    fuel:0,toll:0,fare:0,total:0,company:null,diff:null};
+}
 
-  box.innerHTML = h;
-
-  const t = $('inToll');
-  if (t) t.addEventListener('input', ()=>{ S.tollOneWay = Number(t.value)||0; renderResult(); t2focus('inToll'); });
-  const f = $('inFare');
-  if (f) f.addEventListener('input', ()=>{ S.fareOneWay = Number(f.value)||0; renderResult(); t2focus('inFare'); });
-  const tr = $('inTrans');
-  if (tr) tr.addEventListener('input', ()=>{ S.transfers = Number(tr.value)||0; });
-  const sv = $('btnSave'); if (sv) sv.addEventListener('click', saveHistory);
-  const fa = $('btnFavAdd'); if (fa) fa.addEventListener('click', ()=>{
-    if(!S.dest){ toast('訪問先が未確定です', true); return; }
-    $('favAddr').value = S.dest.address; $('favLabel').value=''; $('mdAddFav').classList.add('on');
+/* ==========================================================================
+   描画
+   ========================================================================== */
+function renderModes(){
+  const r=S.route;
+  document.querySelectorAll('#modes .mode').forEach(b=>{
+    const m=b.dataset.mode;
+    b.classList.toggle('on',m===S.mode);
+    const n=b.querySelector('.mn');
+    if(!r){n.textContent='—';return}
+    if(m==='car')n.textContent=Core.fmtDuration(r.durationMin);
+    else if(m==='transit')n.textContent='要確認';
+    else n.textContent=Core.fmtDuration(Core.estimateMinutes(r.distanceKm,m));
   });
 }
-// 再描画で入力欄がフォーカスを失うのを防ぐ
-function t2focus(id){ const e=$(id); if(e){ e.focus(); const v=e.value; e.value=''; e.value=v; } }
 
-/* =========================================================================
+function bkdHtml(){
+  const c=S.cfg,r=S.route;
+  if(!r)return '';
+  let h='';
+  const row=s=>`<div class="bstep${s.fin?' fin':''}"><span class="bl">${esc(s.label)}</span><span class="be">${esc(s.expr)}</span><span class="bv">${esc(s.value)}</span></div>`;
+  if(S.mode==='car'){
+    const fb=Core.fuelBreakdown({distanceKm:r.distanceKm,fuelEff:c.eff,fuelPrice:c.price,roundTrip:c.round});
+    h+=`<div class="bkd-t">ガソリン代</div>`+fb.steps.map(row).join('');
+    const tb=Core.tollBreakdown({highwayKm:r.highwayKm||0,cls:c.cls,urban:c.urban,discount:c.discount,roundTrip:false});
+    if(S.tollAuto){
+      h+=`<div class="bkd-t">高速料金（計算式による自動算出）</div>`+tb.steps.map(row).join('');
+      if(c.round)h+=row({label:'往復',expr:`${tb.oneWay.toLocaleString()} × 2`,value:`${(tb.oneWay*2).toLocaleString()} 円`,fin:true});
+    }else{
+      // 手入力・記憶がある場合は「実際に使っている値」を先に示し、計算式は参考として後ろに置く
+      h+=`<div class="bkd-t">高速料金（${S.tollMemo?'記憶した実額':'手入力した金額'}）</div>`
+       +row({label:'片道',expr:S.tollMemo?'前回この区間で入力した金額':'入力欄で指定した金額',value:`${S.tollOneWay.toLocaleString()} 円`,fin:!c.round});
+      if(c.round)h+=row({label:'往復',expr:`${S.tollOneWay.toLocaleString()} × 2`,value:`${(S.tollOneWay*2).toLocaleString()} 円`,fin:true});
+      if((r.highwayKm||0)>0){
+        h+=`<div class="bkd-t">参考：計算式ではこうなる</div>`+tb.steps.map(row).join('');
+      }
+    }
+    if(c.rate){
+      const k=Core.carCost({distanceKm:r.distanceKm,fuelEff:c.eff,fuelPrice:c.price,tollOneWay:S.tollOneWay,companyRate:c.rate,roundTrip:c.round});
+      h+=`<div class="bkd-t">会社支給との比較</div>`
+       +row({label:'支給額',expr:`${k.distanceTotal.toFixed(1)} km × ${c.rate} 円/km`,value:`${(k.company||0).toLocaleString()} 円`})
+       +row({label:'実費',expr:'ガソリン代 + 高速料金',value:`${k.total.toLocaleString()} 円`})
+       +row({label:'過不足',expr:'支給額 − 実費',value:`${k.diff>=0?'+':''}${(k.diff||0).toLocaleString()} 円`,fin:true});
+    }
+  }else if(S.mode==='transit'){
+    const k=Core.transitCost({fareOneWay:S.fareOneWay,roundTrip:c.round});
+    const st=Core.haversineKm(S.origin||{lat:0,lng:0},S.dest||{lat:0,lng:0});
+    h+=`<div class="bkd-t">運賃</div>`
+     +row({label:'直線距離',expr:'出発地と訪問先の直線',value:`${st.toFixed(1)} km`})
+     +row({label:'推定営業キロ',expr:`${st.toFixed(1)} km × 1.25（鉄道の迂回分）`,value:`${(st*1.25).toFixed(1)} km`})
+     +row({label:'片道運賃',expr:S.fareMemo?'記憶済みの実額':(S.fareAuto?'JR本州幹線 運賃表より':'手入力'),value:`${S.fareOneWay.toLocaleString()} 円`})
+     +row({label:c.round?'往復':'片道',expr:c.round?`${S.fareOneWay.toLocaleString()} × 2`:'—',value:`${k.total.toLocaleString()} 円`,fin:true});
+  }else{
+    const kmh=S.mode==='walk'?4.8:15;
+    const mins=Core.estimateMinutes(r.distanceKm,S.mode);
+    h+=`<div class="bkd-t">所要時間</div>`
+     +row({label:'道路距離',expr:'経路探索の結果',value:`${r.distanceKm.toFixed(1)} km`})
+     +row({label:'想定速度',expr:S.mode==='walk'?'徒歩':'自転車',value:`${kmh} km/h`})
+     +row({label:'所要時間',expr:`${r.distanceKm.toFixed(1)} ÷ ${kmh} × 60`,value:Core.fmtDuration(mins),fin:true});
+  }
+  return h;
+}
+
+function renderResult(){
+  const box=$('res'),r=S.route,c=S.cfg;
+  if(!r){box.innerHTML='';renderModes();return}
+  const rt=c.round;
+  const cur=computeCurrent();
+  const srcTag={osrm:'道路ルート','osrm-est':'道路距離から換算',fallback:'直線距離からの概算',manual:'手入力の距離'}[r.source]||'';
+  const hwTag={class:'道路種別から判定',name:'路線名から判定',avoided:'高速を使わない設定',none:'高速区間なし'}[r.highwayMethod]||'';
+
+  let body='';
+  if(S.mode==='car'){
+    body=`
+      ${r.highwayKm>0?`<div class="sub">
+        <div class="ln"><span class="k">高速道路</span><span class="v">${r.highwayKm.toFixed(1)} km</span></div>
+        <div class="ln"><span class="k">一般道</span><span class="v">${cur.localKm.toFixed(1)} km</span></div>
+        <div class="ln"><span class="k" style="color:var(--t3)">${hwTag}</span><span></span></div>
+      </div>`:''}
+      <div class="ln"><span class="k">${rt?'往復':'片道'}距離</span><span class="v">${cur.distanceTotal.toFixed(1)} km</span></div>
+      <div class="hr"></div>
+      <div class="ln">
+        <span class="k">高速料金（片道）${S.tollMemo?'<span class="chip mem">記憶</span>':(S.tollAuto?'<span class="chip au">自動</span>':'')}</span>
+        <input type="number" id="inToll" min="0" step="10" value="${S.tollOneWay}" inputmode="numeric">
+        <a class="ext" href="${Link.toll()}" target="_blank" rel="noopener">ドラぷら</a>
+      </div>
+      <div class="ln"><span class="k">ガソリン代（${rt?'往復':'片道'}）</span><span class="v">${Core.yen(cur.fuel)}</span></div>
+      <div class="ln"><span class="k">高速料金（${rt?'往復':'片道'}）</span><span class="v">${Core.yen(cur.toll)}</span></div>
+      <div class="tot"><span class="k">総移動コスト</span><span class="v">${Core.yen(cur.total)}</span></div>
+      ${cur.company!=null?`
+      <div class="ln"><span class="k">会社支給（${c.rate}円/km）</span><span class="v">${Core.yen(cur.company)}</span></div>
+      <div class="ln"><span class="k">過不足</span><span class="v" style="color:${cur.diff>=0?'#188038':'#c5221f'}">${cur.diff>=0?'+':''}${Core.yen(cur.diff)}</span></div>`:''}`;
+  }else if(S.mode==='transit'){
+    body=`
+      <div class="ln">
+        <span class="k">運賃（片道）${S.fareMemo?'<span class="chip mem">記憶</span>':(S.fareAuto?'<span class="chip au">目安</span>':'')}</span>
+        <input type="number" id="inFare" min="0" step="10" value="${S.fareOneWay}" inputmode="numeric">
+        <a class="ext" href="${Link.transit(S.origin?S.origin.address:'',S.dest?S.dest.address:'')}" target="_blank" rel="noopener">乗換案内</a>
+      </div>
+      <div class="ln"><span class="k">乗換回数</span><input type="number" id="inTrans" min="0" step="1" value="${S.transfers}" inputmode="numeric"></div>
+      <div class="tot"><span class="k">運賃${rt?'往復':'片道'}</span><span class="v">${Core.yen(cur.total)}</span></div>`;
+  }else{
+    body=`<div class="ln"><span class="k">${rt?'往復':'片道'}距離</span><span class="v">${cur.distanceTotal.toFixed(1)} km</span></div>`;
+  }
+
+  let note='';
+  if(S.mode==='car'){
+    if(r.highwayMethod==='avoided')note='「高速を使わない」設定のため高速料金は0円です。';
+    else if(r.highwayKm>0)note='高速料金はNEXCO公表の計算式による概算です。均一料金区間・首都高・本四道路は誤差が出ます。内訳で計算過程を確認できます。';
+    else if(r.highwayMethod==='none')note='経路上に高速道路を検出できませんでした。利用する場合は金額を入力してください。';
+  }else if(S.mode==='transit'){
+    note='運賃はJR本州3社の幹線運賃表から距離で推定した目安です。乗換案内で確認した金額に直すと、次回から同じ区間で自動入力されます。';
+  }else{
+    note=`道路距離をもとに${S.mode==='walk'?'時速4.8km':'時速15km'}で換算した目安です。信号待ち・高低差は含みません。`;
+  }
+  if(r.source==='fallback')note='経路探索に失敗したため、距離は直線距離×1.3の概算です。'+note;
+
+  box.innerHTML=`
+    <div class="rcard">
+      <div class="rhead">
+        <div class="rmain">
+          <span class="rdist">${cur.distanceKm.toFixed(1)} km</span>
+          <span class="rtime">${Core.fmtDuration(cur.durationMin)}</span>
+        </div>
+        <div class="rtag">${S.mode==='transit'?'直線距離':srcTag}${rt?' ・ 往復で計算':' ・ 片道で計算'}</div>
+      </div>
+      <div class="rbody">${body}</div>
+      ${note?`<p class="note">${note}</p>`:''}
+      <div class="bkd">
+        <button class="bkd-h${S.bkdOpen?' on':''}" id="bkdH">
+          <span>計算内訳を確認する</span>
+          <svg class="arw" width="18" height="18" viewBox="0 0 24 24"><path d="M7.4 8.6L12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg>
+        </button>
+        <div class="bkd-b${S.bkdOpen?' on':''}" id="bkdB">${bkdHtml()}</div>
+      </div>
+    </div>
+    <div class="outs">
+      <button class="out pri" id="btnCopy">
+        <svg width="15" height="15" viewBox="0 0 24 24"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12zm3 4H8a2 2 0 00-2 2v14c0 1.1.9 2 2 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11z"/></svg>
+        スプシにコピー
+      </button>
+      <button class="out" id="btnSave">履歴に保存</button>
+      <button class="out" id="btnFavAdd">訪問先を登録</button>
+    </div>`;
+
+  const t=$('inToll');
+  if(t)t.addEventListener('input',()=>{
+    S.tollOneWay=Number(t.value)||0; S.tollAuto=false; S.tollMemo=false;
+    rememberMemo({toll:S.tollOneWay}); softRefresh('inToll');
+  });
+  const f=$('inFare');
+  if(f)f.addEventListener('input',()=>{
+    S.fareOneWay=Number(f.value)||0; S.fareAuto=false; S.fareMemo=false;
+    rememberMemo({fare:S.fareOneWay}); softRefresh('inFare');
+  });
+  const tr=$('inTrans');
+  if(tr)tr.addEventListener('input',()=>{S.transfers=Number(tr.value)||0;rememberMemo({transfers:S.transfers})});
+
+  $('bkdH').addEventListener('click',()=>{
+    S.bkdOpen=!S.bkdOpen;
+    $('bkdH').classList.toggle('on',S.bkdOpen);
+    $('bkdB').classList.toggle('on',S.bkdOpen);
+  });
+  $('btnCopy').addEventListener('click',()=>openCopy('one'));
+  $('btnSave').addEventListener('click',saveHistory);
+  $('btnFavAdd').addEventListener('click',()=>{
+    if(!S.dest){toast('訪問先が未確定です',true);return}
+    $('favAddr').value=S.dest.address;$('favLabel').value='';openMd('mdAdd');
+  });
+  renderModes();
+}
+
+/** 入力中に再描画してもフォーカスとカーソルを維持する */
+function softRefresh(focusId){
+  const el=focusId?$(focusId):null;
+  const pos=el?el.selectionStart:null;
+  renderResult();
+  const el2=focusId?$(focusId):null;
+  if(el2){el2.focus();try{el2.setSelectionRange(pos,pos)}catch(e){}}
+}
+
+/* ==========================================================================
    履歴・お気に入り
-   ========================================================================= */
+   ========================================================================== */
 function saveHistory(){
-  if (!S.route){ toast('先に計算してください', true); return; }
-  const c=S.cfg, rt=c.round;
-  const rec = {
-    id: Date.now(), date: new Date().toISOString(),
-    origin: S.origin ? S.origin.address : '(手入力)',
-    dest:   S.dest   ? S.dest.address   : '(手入力)',
-    mode: S.mode,
-    distanceKm: S.route.distanceKm, durationMin: S.route.durationMin,
-    originLat:S.origin?S.origin.lat:null, originLng:S.origin?S.origin.lng:null,
-    destLat:S.dest?S.dest.lat:null,       destLng:S.dest?S.dest.lng:null
-  };
-  if (S.mode==='car'){
-    const k = Core.carCost({distanceKm:S.route.distanceKm,fuelEff:c.eff,fuelPrice:c.price,
-                            tollOneWay:S.tollOneWay,companyRate:c.rate,roundTrip:rt});
-    rec.toll=k.toll; rec.fuel=k.fuel; rec.total=k.total;
-  } else if (S.mode==='transit'){
-    const k = Core.transitCost({fareOneWay:S.fareOneWay,roundTrip:rt});
-    rec.fare=k.fare; rec.total=k.total;
-  } else { rec.total=0; }
-
-  const list = histStore.get(); list.unshift(rec);
-  histStore.set(list.slice(0,100));
+  const cur=computeCurrent();
+  if(!cur){toast('先に計算してください',true);return}
+  const rec=Object.assign({},cur,{
+    id:Date.now(),date:new Date().toISOString(),
+    origin:S.origin?S.origin.address:'(手入力)',
+    dest:S.dest?S.dest.address:'(手入力)',
+    originLat:S.origin?S.origin.lat:null,originLng:S.origin?S.origin.lng:null,
+    destLat:S.dest?S.dest.lat:null,destLng:S.dest?S.dest.lng:null
+  });
+  const l=histStore.get(); l.unshift(rec); histStore.set(l.slice(0,200));
+  if(!S.listOpen)toggleList(true);
   renderList(); toast('履歴に保存しました');
 }
 
+function toggleList(force){
+  S.listOpen=(force!=null)?force:!S.listOpen;
+  $('listWrap').style.display=S.listOpen?'block':'none';
+  if(S.listOpen)renderList();
+}
+
 function renderList(){
-  const body=$('listBody'), acts=$('listActs');
-  if (S.listTab==='hist'){
-    const list=histStore.get();
-    acts.style.display = list.length ? 'flex' : 'none';
-    if(!list.length){ body.innerHTML='<div class="empty">履歴はまだありません</div>'; return; }
-    body.innerHTML = list.map(h=>`
-      <div class="item">
-        <div class="item-main" data-rid="${h.id}">
-          <div class="item-t">${esc(h.origin)} → ${esc(h.dest)}</div>
-          <div class="item-s">${new Date(h.date).toLocaleDateString('ja-JP')}・${({car:'車',transit:'電車',walk:'徒歩',bike:'自転車'})[h.mode]}・${h.distanceKm??'—'}km・${Core.yen(h.total)}</div>
+  const body=$('listBody'),act=$('listAct');
+  if(S.listTab==='hist'){
+    const l=histStore.get();
+    act.style.display=l.length?'flex':'none';
+    if(!l.length){body.innerHTML='<div class="empty">履歴はまだありません</div>';return}
+    body.innerHTML=l.map(h=>`
+      <div class="li">
+        <svg width="18" height="18" viewBox="0 0 24 24"><path d="M13 3a9 9 0 00-9 9H1l3.9 3.9.07.14L9 12H6a7 7 0 117 7 6.9 6.9 0 01-4.9-2l-1.4 1.4A8.9 8.9 0 0013 21a9 9 0 000-18z"/></svg>
+        <div class="li-tx" data-rid="${h.id}">
+          <div class="li-t">${esc(h.origin)} → ${esc(h.dest)}</div>
+          <div class="li-s">${new Date(h.date).toLocaleDateString('ja-JP')} ・ ${({car:'車',transit:'電車',walk:'徒歩',bike:'自転車'})[h.mode]} ・ ${h.distanceKm!=null?h.distanceKm.toFixed(1):'—'}km ・ ${Core.yen(h.total)}</div>
         </div>
-        <button class="item-x" data-del="${h.id}">✕</button>
+        <button class="li-x" data-del="${h.id}" aria-label="削除">✕</button>
       </div>`).join('');
-    body.querySelectorAll('[data-del]').forEach(b=> b.addEventListener('click',()=>{
-      histStore.set(histStore.get().filter(x=>x.id!==Number(b.dataset.del))); renderList();
+    body.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',e=>{
+      e.stopPropagation();
+      histStore.set(histStore.get().filter(x=>x.id!==Number(b.dataset.del)));renderList();
     }));
-    body.querySelectorAll('[data-rid]').forEach(b=> b.addEventListener('click',()=> reuse(Number(b.dataset.rid))));
-  } else {
-    const list=favStore.get();
-    acts.style.display='none';
-    if(!list.length){ body.innerHTML='<div class="empty">お気に入りはまだありません</div>'; return; }
-    body.innerHTML = list.map(f=>`
-      <div class="item">
-        <div class="item-main" data-fid="${f.id}">
-          <div class="item-t">${esc(f.label)}</div>
-          <div class="item-s">${esc(f.address)}</div>
+    body.querySelectorAll('[data-rid]').forEach(b=>b.addEventListener('click',()=>reuse(Number(b.dataset.rid))));
+  }else{
+    const l=favStore.get(); act.style.display='none';
+    if(!l.length){body.innerHTML='<div class="empty">お気に入りはまだありません</div>';return}
+    body.innerHTML=l.map(f=>`
+      <div class="li">
+        <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 17.3l-6.2 3.7 1.6-7L2 9.2l7.2-.6L12 2l2.8 6.6 7.2.6-5.4 4.8 1.6 7z"/></svg>
+        <div class="li-tx" data-fid="${f.id}">
+          <div class="li-t">${esc(f.label)}</div><div class="li-s">${esc(f.address)}</div>
         </div>
-        <button class="item-x" data-fdel="${f.id}">✕</button>
+        <button class="li-x" data-fdel="${f.id}" aria-label="削除">✕</button>
       </div>`).join('');
-    body.querySelectorAll('[data-fdel]').forEach(b=> b.addEventListener('click',()=>{
-      favStore.set(favStore.get().filter(x=>x.id!==Number(b.dataset.fdel))); renderList();
+    body.querySelectorAll('[data-fdel]').forEach(b=>b.addEventListener('click',e=>{
+      e.stopPropagation();
+      favStore.set(favStore.get().filter(x=>x.id!==Number(b.dataset.fdel)));renderList();
     }));
-    body.querySelectorAll('[data-fid]').forEach(b=> b.addEventListener('click',()=>{
-      const f=favStore.get().find(x=>x.id===Number(b.dataset.fid)); if(!f) return;
+    body.querySelectorAll('[data-fid]').forEach(b=>b.addEventListener('click',()=>{
+      const f=favStore.get().find(x=>x.id===Number(b.dataset.fid)); if(!f)return;
       P.dest.setConfirmed({lat:f.lat,lng:f.lng,address:f.address});
       toast('訪問先に設定しました');
     }));
   }
 }
+
 function reuse(id){
-  const h=histStore.get().find(x=>x.id===id); if(!h) return;
-  if(h.originLat!=null) P.origin.setConfirmed({lat:h.originLat,lng:h.originLng,address:h.origin});
-  if(h.destLat!=null)    P.dest.setConfirmed({lat:h.destLat,lng:h.destLng,address:h.dest});
+  const h=histStore.get().find(x=>x.id===id); if(!h)return;
+  if(h.originLat!=null)P.origin.setConfirmed({lat:h.originLat,lng:h.originLng,address:h.origin});
+  if(h.destLat!=null)P.dest.setConfirmed({lat:h.destLat,lng:h.destLng,address:h.dest});
   setMode(h.mode); toast('前回の条件を読み込みました');
 }
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
 
-/* =========================================================================
-   検索実行
-   ========================================================================= */
+/* ==========================================================================
+   コピー（スプレッドシート貼り付け）
+   ========================================================================== */
+let copyScope='one';
+function openCopy(scope){
+  copyScope=scope;
+  $('copyTitle').textContent = scope==='one'?'この結果を貼り付け':'履歴をまとめて貼り付け';
+  refreshCopyText(); openMd('mdCopy');
+}
+function copyRecords(){
+  if(copyScope==='one'){
+    const cur=computeCurrent(); if(!cur)return[];
+    return [Object.assign({},cur,{date:new Date().toISOString(),
+      origin:S.origin?S.origin.address:'(手入力)',dest:S.dest?S.dest.address:'(手入力)'})];
+  }
+  return histStore.get();
+}
+function refreshCopyText(){
+  const recs=copyRecords();
+  $('cpText').value = recs.length ? Core.recordsToTsv(recs,$('cpHead').checked) : '（対象データがありません）';
+}
+
+/* ==========================================================================
+   検索
+   ========================================================================== */
 async function doSearch(){
-  const btn=$('btnSearch'), txt=$('btnSearchTxt');
-
-  // 未確定なら入力文字列から自動解決を試みる
-  for (const [key,inputId,stId,label] of [['origin','inOrigin','stOrigin','出発地'],['dest','inDest','stDest','訪問先']]){
-    if (S[key]) continue;
-    const q = $(inputId).value.trim();
-    if (!q){ toast(label+'を入力してください', true); return; }
-    btn.classList.add('busy'); txt.textContent = label+'を特定中…';
+  const btn=$('btnSearch'),txt=$('btnTxt');
+  const pairs=[['origin','inOrigin','出発地'],['dest','inDest','訪問先']];
+  for(const [key,inputId,label] of pairs){
+    if(S[key])continue;
+    const q=$(inputId).value.trim();
+    if(!q){toast(label+'を入力してください',true);return}
+    btn.classList.add('busy');txt.textContent=label+'を特定中…';
     try{
-      const list = await GeoService.search(q);
-      if (!list.length){
-        btn.classList.remove('busy'); txt.textContent='ルートを検索';
-        P[key].setFailed('特定できません。候補から選ぶか、下の「距離を手入力」をご利用ください');
-        toast(label+'の住所を特定できませんでした', true); return;
+      const list=await GeoService.search(q);
+      if(!list.length){
+        btn.classList.remove('busy');txt.textContent='ルートを検索';
+        P[key].setFailed('特定できません。候補から選ぶか、設定から距離を手入力してください');
+        toast(label+'の住所を特定できませんでした',true);return;
       }
       P[key].setConfirmed(list[0]);
     }catch(e){
-      btn.classList.remove('busy'); txt.textContent='ルートを検索';
-      P[key].setFailed('検索に失敗しました。「距離を手入力」もご利用ください：'+e.message);
-      toast('住所検索に失敗しました。「距離を手入力」もご利用ください', true); return;
+      btn.classList.remove('busy');txt.textContent='ルートを検索';
+      P[key].setFailed('検索に失敗：'+e.message);
+      toast('住所検索に失敗しました。設定から距離を手入力できます',true);return;
     }
   }
-
-  btn.classList.add('busy'); btn.disabled=true; txt.textContent='ルート探索中…';
+  btn.classList.add('busy');btn.disabled=true;txt.textContent='ルートを探索中…';
   try{
-    const r = await RouteService.route(S.origin, S.dest, S.mode, S.cfg.avoidToll);
-    S.route = r;
-    MapView.draw(S.origin, S.dest, r.path);
-    renderResult();
-    if (r.source==='fallback') toast('経路探索に失敗したため直線距離からの概算です', true);
-    else toast('ルートを取得しました');
+    const r=await RouteService.route(S.origin,S.dest,S.mode,S.cfg.avoid);
+    S.route=r; applyAuto();
+    MapView.draw(S.origin,S.dest,r.path);
+    renderResult(); expandPanel();
+    toast(r.source==='fallback'?'経路探索に失敗したため直線距離からの概算です':'ルートを取得しました', r.source==='fallback');
   }catch(e){
-    toast('検索に失敗しました：'+e.message, true);
+    toast('検索に失敗しました：'+e.message,true);
   }finally{
-    btn.classList.remove('busy'); btn.disabled=false; txt.textContent='ルートを検索';
+    btn.classList.remove('busy');btn.disabled=false;txt.textContent='ルートを検索';
   }
 }
 
-/* =========================================================================
+/* ==========================================================================
    接続診断
-   ========================================================================= */
+   ========================================================================== */
 async function runDiag(){
-  const set=(id,ok,msg)=>{ const e=$(id); e.className = ok?'diag-ok':'diag-ng'; e.textContent = ok?'OK':('NG '+(msg||'')); };
-  ['dgGsi','dgNom','dgOsrm','dgLeaf'].forEach(i=>{ $(i).className='diag-wait'; $(i).textContent='実行中…'; });
+  const set=(id,ok,msg)=>{const e=$(id);e.className=ok?'dg-ok':'dg-ng';e.textContent=ok?'OK':('NG '+(msg||''))};
+  ['dgGsi','dgNom','dgOsrm','dgLeaf'].forEach(i=>{$(i).className='dg-w';$(i).textContent='実行中…'});
   $('diagNote').textContent='';
-
-  try{ const j=await Net.json(`${GeoService.GSI}?q=${encodeURIComponent('東京都千代田区')}`,{timeout:9000});
-       set('dgGsi', Core.normalizeGsi(j).length>0, '応答が空'); }
-  catch(e){ set('dgGsi', false, e.message); }
-
-  try{ const j=await Net.json(`${GeoService.NOM}?q=${encodeURIComponent('東京駅')}&format=json&limit=1&countrycodes=jp`,{timeout:9000});
-       set('dgNom', Core.normalizeNominatim(j).length>0, '応答が空'); }
-  catch(e){ set('dgNom', false, e.message); }
-
-  try{ const j=await Net.json(`${RouteService.BASE}/driving/139.767,35.681;139.700,35.690?overview=false`,{timeout:9000});
-       set('dgOsrm', j && j.code==='Ok', 'コード'+(j&&j.code)); }
-  catch(e){ set('dgOsrm', false, e.message); }
-
-  set('dgLeaf', typeof L !== 'undefined' && MapView.ok, '読込失敗');
-
-  const isFile = location.protocol === 'file:';
-  $('diagNote').textContent = isFile
+  try{const j=await Net.json(`${GeoService.GSI}?q=${encodeURIComponent('東京都千代田区')}`,{timeout:9000});
+    set('dgGsi',Core.normalizeGsi(j).length>0,'応答が空')}catch(e){set('dgGsi',false,e.message)}
+  try{const j=await Net.json(`${GeoService.NOM}?q=${encodeURIComponent('東京駅')}&format=json&limit=1&countrycodes=jp`,{timeout:9000});
+    set('dgNom',Core.normalizeNominatim(j).length>0,'応答が空')}catch(e){set('dgNom',false,e.message)}
+  try{const j=await Net.json(`${RouteService.BASE}/driving/139.767,35.681;139.700,35.690?overview=false`,{timeout:9000});
+    set('dgOsrm',j&&j.code==='Ok','コード'+(j&&j.code))}catch(e){set('dgOsrm',false,e.message)}
+  set('dgLeaf',typeof L!=='undefined'&&MapView.ok,'読込失敗');
+  $('diagNote').textContent = (location.protocol==='file:')
     ? 'ファイルを直接開いています（file://）。この状態では外部APIがブラウザにブロックされます。GitHub Pages に置くか、ローカルサーバー経由で開いてください。'
-    : 'NGが出た項目は、通信環境・社内プロキシ・拡張機能のブロックが原因の可能性があります。';
+    : 'NGの項目は、通信環境・社内プロキシ・拡張機能によるブロックが原因の可能性があります。';
 }
 
-/* =========================================================================
-   初期化 : リスナーは一度だけ登録する
-   ========================================================================= */
+/* ==========================================================================
+   パネル操作（モバイル）
+   ========================================================================== */
+function expandPanel(){
+  if(window.innerWidth<900){
+    const p=$('panel'); p.classList.remove('peek'); p.classList.add('full');
+  }
+}
+function collapsePanel(){
+  if(window.innerWidth<900){
+    const p=$('panel'); p.classList.add('peek'); p.classList.remove('full');
+  }
+}
+/** 画面幅が変わったときにパネルの開閉状態を整合させる */
+function syncPanelMode(){
+  const p=$('panel');
+  if(window.innerWidth>=900){
+    // デスクトップでは常に固定パネル。開閉クラスを残すとリサイズ時に畳まれてしまう
+    p.classList.remove('peek','full');
+  }else if(!p.classList.contains('peek')&&!p.classList.contains('full')){
+    p.classList.add(S.route?'full':'peek');
+  }
+}
+function initSheet(){
+  const p=$('panel'),g=$('grip');
+  let y0=null,t0=0;
+  const start=e=>{y0=(e.touches?e.touches[0].clientY:e.clientY);t0=Date.now();p.style.transition='none'};
+  const move=e=>{
+    if(y0==null)return;
+    const y=(e.touches?e.touches[0].clientY:e.clientY);
+    const dy=y-y0;
+    if(p.classList.contains('full')&&dy>0)p.style.transform=`translateY(${dy}px)`;
+  };
+  const end=e=>{
+    if(y0==null)return;
+    p.style.transition='';p.style.transform='';
+    const y=(e.changedTouches?e.changedTouches[0].clientY:e.clientY);
+    const dy=y-y0, dt=Date.now()-t0;
+    if(dy>60||(dy>20&&dt<220))collapsePanel(); else expandPanel();
+    y0=null;
+  };
+  g.addEventListener('touchstart',start,{passive:true});
+  g.addEventListener('touchmove',move,{passive:true});
+  g.addEventListener('touchend',end);
+  g.addEventListener('mousedown',start);
+  window.addEventListener('mousemove',move);
+  window.addEventListener('mouseup',end);
+  g.addEventListener('click',()=>{p.classList.contains('full')?collapsePanel():expandPanel()});
+}
+
+/* ==========================================================================
+   設定
+   ========================================================================== */
 function setMode(m){
-  S.mode = m;
-  document.querySelectorAll('#modeTabs .tab').forEach(b=> b.classList.toggle('on', b.dataset.mode===m));
-  if (S.route) renderResult();
+  S.mode=m;
+  document.querySelectorAll('#modes .mode').forEach(b=>b.classList.toggle('on',b.dataset.mode===m));
+  if(S.route){applyAuto();renderResult()}else renderModes();
 }
 function readCfg(){
-  S.cfg = {
-    eff: Number($('cfgEff').value)||12,
-    price: Number($('cfgPrice').value)||175,
-    rate: $('cfgRate').value==='' ? null : Number($('cfgRate').value),
-    round: $('cfgRound').checked,
-    avoidToll: $('cfgAvoidToll').checked
+  S.cfg={
+    eff:Number($('cfgEff').value)||12,
+    price:Number($('cfgPrice').value)||175,
+    rate:$('cfgRate').value===''?null:Number($('cfgRate').value),
+    cls:$('cfgClass').value||'normal',
+    discount:Number($('cfgDiscount').value)||0,
+    urban:$('cfgUrban').checked,
+    round:$('cfgRound').checked,
+    avoid:$('cfgAvoid').checked
   };
   cfgStore.set(S.cfg);
-  if (S.route) renderResult();
+  if(S.route){if(S.tollAuto||S.fareAuto)applyAuto();renderResult()}
 }
 
+/* ==========================================================================
+   初期化
+   ========================================================================== */
 function init(){
-  // 設定を復元
   const c=S.cfg;
   $('cfgEff').value=c.eff; $('cfgPrice').value=c.price;
-  $('cfgRate').value = c.rate==null?'':c.rate;
-  $('cfgRound').checked=!!c.round; $('cfgAvoidToll').checked=!!c.avoidToll;
-  ['cfgEff','cfgPrice','cfgRate','cfgRound','cfgAvoidToll'].forEach(id=> $(id).addEventListener('change', readCfg));
+  $('cfgRate').value=c.rate==null?'':c.rate;
+  $('cfgClass').value=c.cls||'normal';
+  $('cfgDiscount').value=String(c.discount||0);
+  $('cfgUrban').checked=!!c.urban; $('cfgRound').checked=!!c.round; $('cfgAvoid').checked=!!c.avoid;
+  ['cfgEff','cfgPrice','cfgRate','cfgClass','cfgDiscount','cfgUrban','cfgRound','cfgAvoid']
+    .forEach(id=>$(id).addEventListener('change',readCfg));
 
-  P.origin = new Picker($('inOrigin'), $('candOrigin'), $('stOrigin'), c=>{ S.origin=c; });
-  P.dest   = new Picker($('inDest'),   $('candDest'),   $('stDest'),   c=>{ S.dest=c; });
+  P.origin=new Picker($('inOrigin'),$('candOrigin'),$('stOrigin'),v=>{S.origin=v});
+  P.dest  =new Picker($('inDest'),  $('candDest'),  $('stDest'),  v=>{S.dest=v});
 
-  $('btnSearch').addEventListener('click', doSearch);
+  $('btnSearch').addEventListener('click',doSearch);
+  [$('inOrigin'),$('inDest')].forEach(el=>el.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&!document.querySelector('.cand.on'))doSearch();
+  }));
 
-  $('btnGps').addEventListener('click', async ()=>{
-    if(!navigator.geolocation){ toast('この端末は位置情報に対応していません', true); return; }
-    setStatus($('stOrigin'),'wait','現在地を取得中…');
-    navigator.geolocation.getCurrentPosition(async p=>{
-      const lat=p.coords.latitude, lng=p.coords.longitude;
-      const addr= await GeoService.reverse(lat,lng);
-      P.origin.setConfirmed({lat,lng,address:addr});
-      toast('現在地を取得しました');
-    }, err=>{
-      P.origin.setFailed('現在地を取得できません（'+err.message+'）');
-      toast('位置情報の取得に失敗しました', true);
-    }, {enableHighAccuracy:true, timeout:12000});
+  $('btnSwap').addEventListener('click',()=>{
+    const o=S.origin,d=S.dest;
+    const ov=$('inOrigin').value,dv=$('inDest').value;
+    if(o)P.dest.setConfirmed(o); else {$('inDest').value=ov;S.dest=null;setSt($('stDest'),'wait','未確定')}
+    if(d)P.origin.setConfirmed(d); else {$('inOrigin').value=dv;S.origin=null;setSt($('stOrigin'),'wait','未確定')}
+    if(S.route&&S.origin&&S.dest)doSearch();
   });
 
-  document.querySelectorAll('#modeTabs .tab').forEach(b=> b.addEventListener('click', ()=> setMode(b.dataset.mode)));
-  document.querySelectorAll('#listTabs .tab').forEach(b=> b.addEventListener('click', ()=>{
+  $('btnGps').addEventListener('click',()=>{
+    if(!navigator.geolocation){toast('この端末は位置情報に対応していません',true);return}
+    setSt($('stOrigin'),'wait','現在地を取得中…');
+    navigator.geolocation.getCurrentPosition(async p=>{
+      const lat=p.coords.latitude,lng=p.coords.longitude;
+      const addr=await GeoService.reverse(lat,lng);
+      P.origin.setConfirmed({lat,lng,address:addr});
+      toast('現在地を取得しました');
+    },err=>{
+      P.origin.setFailed('現在地を取得できません（'+err.message+'）');
+      toast('位置情報の取得に失敗しました',true);
+    },{enableHighAccuracy:true,timeout:12000});
+  });
+
+  document.querySelectorAll('#modes .mode').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+
+  $('btnList').addEventListener('click',()=>{toggleList();if(S.listOpen)expandPanel()});
+  document.querySelectorAll('.ltab').forEach(b=>b.addEventListener('click',()=>{
     S.listTab=b.dataset.list;
-    document.querySelectorAll('#listTabs .tab').forEach(x=> x.classList.toggle('on', x===b));
+    document.querySelectorAll('.ltab').forEach(x=>x.classList.toggle('on',x===b));
     renderList();
   }));
 
-  [['accVehicle','accVehicleBody'],['accManual','accManualBody']].forEach(([h,b])=>{
-    $(h).addEventListener('click', ()=>{ $(h).classList.toggle('on'); $(b).classList.toggle('on'); });
-  });
+  $('btnCfg').addEventListener('click',()=>openMd('mdCfg'));
+  $('btnDiag').addEventListener('click',runDiag);
+  document.querySelectorAll('[data-x]').forEach(b=>b.addEventListener('click',()=>closeMd(b.dataset.x)));
+  document.querySelectorAll('.md').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('on')}));
 
-  $('btnManual').addEventListener('click', ()=>{
+  $('btnManual').addEventListener('click',()=>{
     const d=Number($('manDist').value);
-    if(!d || d<=0){ toast('片道距離を入力してください', true); return; }
-    const userMin = Number($('manMin').value) || null;
-    const m = userMin || Core.estimateMinutes(d, (S.mode==='walk'||S.mode==='bike') ? S.mode : 'car');
-    S.route={distanceKm:Math.round(d*10)/10, durationMin:Math.round(m), path:[], source:'manual', userMin};
-    renderResult();
+    if(!d||d<=0){toast('片道距離を入力してください',true);return}
+    const um=Number($('manMin').value)||null;
+    const m=um||Core.estimateMinutes(d,(S.mode==='walk'||S.mode==='bike')?S.mode:'car');
+    S.route={distanceKm:Math.round(d*10)/10,durationMin:Math.round(m),path:[],source:'manual',
+             userMin:um,highwayKm:0,highwayMethod:'none',localKm:Math.round(d*10)/10};
+    applyAuto(); renderResult(); closeMd('mdCfg'); expandPanel();
     toast('手入力の距離で計算しました');
-    $('result').scrollIntoView({behavior:'smooth', block:'start'});
   });
 
-  $('btnSettings').addEventListener('click', ()=> $('mdSettings').classList.add('on'));
-  $('btnDiag').addEventListener('click', runDiag);
-  document.querySelectorAll('[data-close]').forEach(b=> b.addEventListener('click', ()=> $(b.dataset.close).classList.remove('on')));
-  document.querySelectorAll('.modal').forEach(m=> m.addEventListener('click', e=>{ if(e.target===m) m.classList.remove('on'); }));
-
-  const openFav = which =>{
-    const list=favStore.get();
-    $('mdFavTitle').textContent = which==='o'?'出発地を選ぶ':'訪問先を選ぶ';
-    $('mdFavList').innerHTML = list.length ? list.map(f=>`
-      <div class="item"><div class="item-main" data-pick="${f.id}">
-        <div class="item-t">${esc(f.label)}</div><div class="item-s">${esc(f.address)}</div>
-      </div></div>`).join('') : '<div class="empty">お気に入りはまだありません</div>';
-    $('mdFavList').querySelectorAll('[data-pick]').forEach(b=> b.addEventListener('click', ()=>{
-      const f=list.find(x=>x.id===Number(b.dataset.pick)); if(!f) return;
-      const loc={lat:f.lat,lng:f.lng,address:f.address};
-      if(which==='o') P.origin.setConfirmed(loc); else P.dest.setConfirmed(loc);
-      $('mdFav').classList.remove('on');
+  $('btnFavD').addEventListener('click',()=>{
+    const l=favStore.get();
+    $('favTitle').textContent='訪問先を選ぶ';
+    $('favList').innerHTML=l.length?l.map(f=>`
+      <div class="li" data-pick="${f.id}">
+        <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 17.3l-6.2 3.7 1.6-7L2 9.2l7.2-.6L12 2l2.8 6.6 7.2.6-5.4 4.8 1.6 7z"/></svg>
+        <div class="li-tx"><div class="li-t">${esc(f.label)}</div><div class="li-s">${esc(f.address)}</div></div>
+      </div>`).join(''):'<div class="empty">お気に入りはまだありません</div>';
+    $('favList').querySelectorAll('[data-pick]').forEach(b=>b.addEventListener('click',()=>{
+      const f=l.find(x=>x.id===Number(b.dataset.pick)); if(!f)return;
+      P.dest.setConfirmed({lat:f.lat,lng:f.lng,address:f.address});
+      closeMd('mdFav');
     }));
-    $('mdFav').classList.add('on');
-  };
-  $('btnFavO').addEventListener('click', ()=> openFav('o'));
-  $('btnFavD').addEventListener('click', ()=> openFav('d'));
-
-  $('btnSaveFav').addEventListener('click', ()=>{
-    const label=$('favLabel').value.trim(), addr=$('favAddr').value;
-    if(!label){ toast('表示名を入力してください', true); return; }
-    if(!S.dest){ toast('訪問先が未確定です', true); return; }
-    const list=favStore.get();
-    list.push({id:Date.now(), label, address:addr, lat:S.dest.lat, lng:S.dest.lng});
-    favStore.set(list);
-    $('mdAddFav').classList.remove('on'); renderList(); toast('お気に入りに登録しました');
+    openMd('mdFav');
   });
 
-  $('btnCsv').addEventListener('click', ()=>{
-    const list=histStore.get();
-    if(!list.length){ toast('履歴がありません', true); return; }
-    const csv='\uFEFF'+Core.buildCsv(Core.historyToRows(list));
+  $('btnSaveFav').addEventListener('click',()=>{
+    const label=$('favLabel').value.trim();
+    if(!label){toast('表示名を入力してください',true);return}
+    if(!S.dest){toast('訪問先が未確定です',true);return}
+    const l=favStore.get();
+    l.push({id:Date.now(),label,address:$('favAddr').value,lat:S.dest.lat,lng:S.dest.lng});
+    favStore.set(l); closeMd('mdAdd');
+    if(S.listOpen)renderList();
+    toast('お気に入りに登録しました');
+  });
+
+  $('btnCopyAll').addEventListener('click',()=>openCopy('all'));
+  $('cpHead').addEventListener('change',refreshCopyText);
+  $('btnDoCopy').addEventListener('click',async()=>{
+    const txt=$('cpText').value;
+    if(!txt||txt.indexOf('（対象データ')===0){toast('コピーするデータがありません',true);return}
+    const ok=await copyText(txt);
+    if(ok){toast('コピーしました。スプレッドシートに貼り付けてください');closeMd('mdCopy')}
+    else{$('cpText').select();toast('自動コピーできません。枠内を選択してコピーしてください',true)}
+  });
+
+  $('btnCsv').addEventListener('click',()=>{
+    const l=histStore.get();
+    if(!l.length){toast('履歴がありません',true);return}
+    const csv='\uFEFF'+Core.recordsToCsv(l);
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
     const a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
     a.download=`交通費_${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=> URL.revokeObjectURL(a.href), 1000);
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
     toast('CSVをダウンロードしました');
   });
 
-  $('btnClearHist').addEventListener('click', ()=>{
-    if(confirm('履歴をすべて削除しますか？')){ histStore.set([]); renderList(); toast('履歴を削除しました'); }
+  $('btnClear').addEventListener('click',()=>{
+    if(confirm('履歴をすべて削除しますか？')){histStore.set([]);renderList();toast('履歴を削除しました')}
   });
 
   MapView.init();
-  renderList();
-
-  if (location.protocol === 'file:'){
-    toast('file:// で開いています。外部APIがブロックされる場合は設定→接続診断をご確認ください', true);
-  }
+  initSheet();
+  syncPanelMode();
+  window.addEventListener('resize',syncPanelMode);
+  renderModes();
+  if(location.protocol==='file:')
+    toast('file:// で開いています。設定→接続診断をご確認ください',true);
 }
 
-if (typeof document !== 'undefined' && !globalThis.__TEST__){
-  document.addEventListener('DOMContentLoaded', init);
+if(typeof document!=='undefined'&&!globalThis.__TEST__){
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);
+  else init();
 }
-if (typeof module !== 'undefined' && module.exports){ module.exports = { Core }; }
+if(typeof module!=='undefined'&&module.exports){module.exports={Core}}
 </script>
 </body>
 </html>
